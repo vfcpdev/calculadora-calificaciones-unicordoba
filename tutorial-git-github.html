@@ -445,25 +445,62 @@ for (let i = 0; i < 5; i++) {
 
                 <!-- ASSESSMENT SECTION -->
                 <section id="assessment">
-                    <h2>📝 Evaluación HTML & CSS</h2>
-                    <p>Demuestra lo que sabes sobre la estructura y el diseño web.</p>
-                    <div class="quiz-container">
-                        <div class="question">
-                            <p>1. ¿Qué etiqueta se usa para el título principal de una página?</p>
-                            <div class="options">
-                                <button class="option-btn" onclick="checkAnswer(this, false)">header</button>
-                                <button class="option-btn" onclick="checkAnswer(this, true)">h1</button>
-                                <button class="option-btn" onclick="checkAnswer(this, false)">title</button>
-                            </div>
-                        </div>
-                        <div class="question">
-                            <p>2. En CSS, ¿qué propiedad cambia el color de fondo?</p>
-                            <div class="options">
-                                <button class="option-btn" onclick="checkAnswer(this, false)">color</button>
-                                <button class="option-btn" onclick="checkAnswer(this, true)">background-color</button>
-                                <button class="option-btn" onclick="checkAnswer(this, false)">bgcolor</button>
-                            </div>
-                        </div>
+                    <h2>📝 Evaluación Web & Git (30 Preguntas)</h2>
+                    <p>Pon a prueba tu dominio total de las tecnologías web y el control de versiones.</p>
+                    <div class="quiz-container" style="max-height: 70vh; overflow-y: auto; padding-right: 15px;">
+                        <!-- Preguntas aquí -->
+                        <script>
+                            const questions = [
+                                { q: "¿Qué etiqueta define el título principal?", a: ["header", "h1", "title"], c: 1 },
+                                { q: "Propiedad para cambiar el color de fondo en CSS:", a: ["color", "background-color", "bg"], c: 1 },
+                                { q: "Comando para iniciar un repositorio Git:", a: ["git start", "git init", "git new"], c: 1 },
+                                { q: "Etiqueta para crear un enlace (vínculo):", a: ["<link>", "<a>", "<href>"], c: 1 },
+                                { q: "Comando para guardar cambios localmente:", a: ["git save", "git commit", "git upload"], c: 1 },
+                                { q: "Símbolo para seleccionar un ID en CSS:", a: [".", "#", "*"], c: 1 },
+                                { q: "Palabra clave para declarar una variable constante en JS:", a: ["var", "let", "const"], c: 2 },
+                                { q: "¿Qué significa Git Status?", a: ["Estado de archivos", "Subir archivos", "Borrar archivos"], c: 0 },
+                                { q: "Propiedad CSS para redondear bordes:", a: ["border-round", "border-radius", "corner"], c: 1 },
+                                { q: "Etiqueta para una lista no ordenada:", a: ["<ol>", "<ul>", "<li>"], c: 1 },
+                                { q: "Comando para ver el historial de commits:", a: ["git history", "git log", "git show"], c: 1 },
+                                { q: "Atributo para la ruta de una imagen:", a: ["href", "src", "link"], c: 1 },
+                                { q: "¿Cómo se llama el área de preparación en Git?", a: ["Staging Area", "Cloud Area", "Commit Area"], c: 0 },
+                                { q: "Propiedad CSS para el espacio INTERNO de un elemento:", a: ["margin", "padding", "border"], c: 1 },
+                                { q: "¿Para qué sirve el comando git add .?", a: ["Subir a GitHub", "Preparar archivos", "Crear rama"], c: 1 },
+                                { q: "Operador de igualdad estricta en JavaScript:", a: ["==", "=", "==="], c: 2 },
+                                { q: "¿Cuál es la extensión de archivos de estilos?", a: [".html", ".js", ".css"], c: 2 },
+                                { q: "Comando para crear una nueva rama:", a: ["git branch", "git checkout -b", "Ambas"], c: 2 },
+                                { q: "Etiqueta HTML para el contenedor genérico de bloque:", a: ["<span>", "<div>", "<section>"], c: 1 },
+                                { q: "¿Cómo se envían los cambios a un servidor remoto?", a: ["git push", "git send", "git remote"], c: 0 },
+                                { q: "Propiedad para cambiar el tipo de fuente:", a: ["font-style", "font-family", "text-font"], c: 1 },
+                                { q: "¿Qué hace 'git pull'?", a: ["Baja cambios", "Sube cambios", "Borra archivos"], c: 0 },
+                                { q: "Mensaje obligatorio en un commit:", a: ["-m", "-msg", "-text"], c: 0 },
+                                { q: "Etiqueta para párrafos de texto:", a: ["<text>", "<p>", "<span>"], c: 1 },
+                                { q: "Valor de 'display' para diseño flexible:", a: ["block", "grid", "flex"], c: 2 },
+                                { q: "Función de JS para imprimir en consola:", a: ["print()", "console.log()", "println()"], c: 1 },
+                                { q: "¿Qué etiqueta contiene los metadatos del sitio?", a: ["<body>", "<head>", "<footer>"], c: 1 },
+                                { q: "Comando para unir una rama con la principal:", a: ["git unite", "git branch --add", "git merge"], c: 2 },
+                                { q: "Propiedad CSS para ocultar un elemento:", a: ["display:none", "visible:false", "hide:true"], c: 0 },
+                                { q: "Estructura iterativa básica en JS:", a: ["if", "for", "switch"], c: 1 }
+                            ];
+
+                            function loadQuiz() {
+                                const container = document.querySelector('.quiz-container');
+                                questions.forEach((item, idx) => {
+                                    const qDiv = document.createElement('div');
+                                    qDiv.className = 'question';
+                                    qDiv.innerHTML = `
+                                        <p>${idx + 1}. ${item.q}</p>
+                                        <div class="options">
+                                            ${item.a.map((opt, i) => `
+                                                <button class="option-btn" onclick="checkAnswer(this, ${i === item.c}, '${item.a[item.c]}')">${opt}</button>
+                                            `).join('')}
+                                        </div>
+                                    `;
+                                    container.appendChild(qDiv);
+                                });
+                            }
+                            window.onload = loadQuiz;
+                        </script>
                     </div>
                 </section>
 
