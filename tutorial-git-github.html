@@ -59,6 +59,7 @@
             font-weight: 700;
             background: linear-gradient(90deg, #3b82f6, #22c55e);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 1rem;
         }
@@ -363,9 +364,9 @@
                         <div id="out-l1"></div>
                     </div>
                     <div class="cmd-grid">
-                        <button class="btn-cmd" onclick="simulate('git config --global user.name \"Tu Nombre\"', 'Configurado nombre de usuario', 'l1')">git config name</button>
-                        <button class="btn-cmd" onclick="simulate('git config --global user.email \"tu@correo.com\"', 'Configurado email de usuario', 'l1')">git config email</button>
-                        <button class="btn-cmd" onclick="simulate('git init', 'Repositorio vacío inicializado en .git/', 'l1')">git init</button>
+                        <button class="btn-cmd" onclick="runSim('cfg-name', 'l1')">git config name</button>
+                        <button class="btn-cmd" onclick="runSim('cfg-email', 'l1')">git config email</button>
+                        <button class="btn-cmd" onclick="runSim('git-init', 'l1')">git init</button>
                     </div>
                     <p style="margin-top: 1.5rem;"><strong>Comando Clave:</strong> <code>git init</code> convierte cualquier carpeta en un repositorio inteligente.</p>
                 </section>
@@ -384,8 +385,8 @@
                         </div>
                     </div>
                     <div class="cmd-grid">
-                        <button class="btn-cmd" onclick="simulate('git add .', 'Archivos añadidos al staging area', 'l2')">git add .</button>
-                        <button class="btn-cmd" onclick="simulate('git commit -m \"Primer commit\"', '1 file changed, 10 insertions(+)', 'l2')">git commit</button>
+                        <button class="btn-cmd" onclick="runSim('git-add', 'l2')">git add .</button>
+                        <button class="btn-cmd" onclick="runSim('git-commit', 'l2')">git commit</button>
                     </div>
                     <p style="margin-top: 1.5rem;"><strong>Tip:</strong> Siempre usa mensajes de commit descriptivos que expliquen <em>qué</em> hiciste.</p>
                 </section>
@@ -401,9 +402,9 @@
                         <div id="out-l3"></div>
                     </div>
                     <div class="cmd-grid">
-                        <button class="btn-cmd" onclick="simulate('git branch menu-lateral', 'Rama menu-lateral creada', 'l3')">git branch</button>
-                        <button class="btn-cmd" onclick="simulate('git checkout menu-lateral', 'Cambiado a rama menu-lateral', 'l3')">git checkout</button>
-                        <button class="btn-cmd" onclick="simulate('git merge menu-lateral', 'Updating main... Fast-forward', 'l3')">git merge</button>
+                        <button class="btn-cmd" onclick="runSim('git-branch', 'l3')">git branch</button>
+                        <button class="btn-cmd" onclick="runSim('git-checkout', 'l3')">git checkout</button>
+                        <button class="btn-cmd" onclick="runSim('git-merge', 'l3')">git merge</button>
                     </div>
                 </section>
 
@@ -418,8 +419,8 @@
                         <div id="out-l4"></div>
                     </div>
                     <div class="cmd-grid">
-                        <button class="btn-cmd" onclick="simulate('git remote add origin https://github.com/...", "Repositorio remoto vinculado", "l4")">git remote add</button>
-                        <button class="btn-cmd" onclick="simulate('git push -u origin main', 'Enumerating objects: 5, done. Total 5 (delta 0)', 'l4')">git push</button>
+                        <button class="btn-cmd" onclick="runSim('git-remote', 'l4')">git remote add</button>
+                        <button class="btn-cmd" onclick="runSim('git-push', 'l4')">git push</button>
                     </div>
                 </section>
 
@@ -447,60 +448,8 @@ for (let i = 0; i < 5; i++) {
                 <section id="assessment">
                     <h2>📝 Evaluación Web & Git (30 Preguntas)</h2>
                     <p>Pon a prueba tu dominio total de las tecnologías web y el control de versiones.</p>
-                    <div class="quiz-container" style="max-height: 70vh; overflow-y: auto; padding-right: 15px;">
-                        <!-- Preguntas aquí -->
-                        <script>
-                            const questions = [
-                                { q: "¿Qué etiqueta define el título principal?", a: ["header", "h1", "title"], c: 1 },
-                                { q: "Propiedad para cambiar el color de fondo en CSS:", a: ["color", "background-color", "bg"], c: 1 },
-                                { q: "Comando para iniciar un repositorio Git:", a: ["git start", "git init", "git new"], c: 1 },
-                                { q: "Etiqueta para crear un enlace (vínculo):", a: ["<link>", "<a>", "<href>"], c: 1 },
-                                { q: "Comando para guardar cambios localmente:", a: ["git save", "git commit", "git upload"], c: 1 },
-                                { q: "Símbolo para seleccionar un ID en CSS:", a: [".", "#", "*"], c: 1 },
-                                { q: "Palabra clave para declarar una variable constante en JS:", a: ["var", "let", "const"], c: 2 },
-                                { q: "¿Qué significa Git Status?", a: ["Estado de archivos", "Subir archivos", "Borrar archivos"], c: 0 },
-                                { q: "Propiedad CSS para redondear bordes:", a: ["border-round", "border-radius", "corner"], c: 1 },
-                                { q: "Etiqueta para una lista no ordenada:", a: ["<ol>", "<ul>", "<li>"], c: 1 },
-                                { q: "Comando para ver el historial de commits:", a: ["git history", "git log", "git show"], c: 1 },
-                                { q: "Atributo para la ruta de una imagen:", a: ["href", "src", "link"], c: 1 },
-                                { q: "¿Cómo se llama el área de preparación en Git?", a: ["Staging Area", "Cloud Area", "Commit Area"], c: 0 },
-                                { q: "Propiedad CSS para el espacio INTERNO de un elemento:", a: ["margin", "padding", "border"], c: 1 },
-                                { q: "¿Para qué sirve el comando git add .?", a: ["Subir a GitHub", "Preparar archivos", "Crear rama"], c: 1 },
-                                { q: "Operador de igualdad estricta en JavaScript:", a: ["==", "=", "==="], c: 2 },
-                                { q: "¿Cuál es la extensión de archivos de estilos?", a: [".html", ".js", ".css"], c: 2 },
-                                { q: "Comando para crear una nueva rama:", a: ["git branch", "git checkout -b", "Ambas"], c: 2 },
-                                { q: "Etiqueta HTML para el contenedor genérico de bloque:", a: ["<span>", "<div>", "<section>"], c: 1 },
-                                { q: "¿Cómo se envían los cambios a un servidor remoto?", a: ["git push", "git send", "git remote"], c: 0 },
-                                { q: "Propiedad para cambiar el tipo de fuente:", a: ["font-style", "font-family", "text-font"], c: 1 },
-                                { q: "¿Qué hace 'git pull'?", a: ["Baja cambios", "Sube cambios", "Borra archivos"], c: 0 },
-                                { q: "Mensaje obligatorio en un commit:", a: ["-m", "-msg", "-text"], c: 0 },
-                                { q: "Etiqueta para párrafos de texto:", a: ["<text>", "<p>", "<span>"], c: 1 },
-                                { q: "Valor de 'display' para diseño flexible:", a: ["block", "grid", "flex"], c: 2 },
-                                { q: "Función de JS para imprimir en consola:", a: ["print()", "console.log()", "println()"], c: 1 },
-                                { q: "¿Qué etiqueta contiene los metadatos del sitio?", a: ["<body>", "<head>", "<footer>"], c: 1 },
-                                { q: "Comando para unir una rama con la principal:", a: ["git unite", "git branch --add", "git merge"], c: 2 },
-                                { q: "Propiedad CSS para ocultar un elemento:", a: ["display:none", "visible:false", "hide:true"], c: 0 },
-                                { q: "Estructura iterativa básica en JS:", a: ["if", "for", "switch"], c: 1 }
-                            ];
-
-                            function loadQuiz() {
-                                const container = document.querySelector('.quiz-container');
-                                questions.forEach((item, idx) => {
-                                    const qDiv = document.createElement('div');
-                                    qDiv.className = 'question';
-                                    qDiv.innerHTML = `
-                                        <p>${idx + 1}. ${item.q}</p>
-                                        <div class="options">
-                                            ${item.a.map((opt, i) => `
-                                                <button class="option-btn" onclick="checkAnswer(this, ${i === item.c}, '${item.a[item.c]}')">${opt}</button>
-                                            `).join('')}
-                                        </div>
-                                    `;
-                                    container.appendChild(qDiv);
-                                });
-                            }
-                            window.onload = loadQuiz;
-                        </script>
+                    <div class="quiz-container" style="max-height: 70vh; overflow-y: auto; padding-right: 15px;" id="quiz-dynamic-content">
+                        <!-- Las preguntas se cargan dinámicamente -->
                     </div>
                 </section>
 
@@ -566,7 +515,7 @@ for (let i = 0; i < 5; i++) {
         }
 
         // Quiz Logic
-        function checkAnswer(btn, isCorrect) {
+        function checkAnswer(btn, isCorrect, correctAnswer) {
             const options = btn.parentElement.querySelectorAll('.option-btn');
             options.forEach(opt => opt.disabled = true);
             
@@ -574,17 +523,91 @@ for (let i = 0; i < 5; i++) {
                 btn.classList.add('correct');
             } else {
                 btn.classList.add('wrong');
-                // Highlight correct one
+                // Highlight correct one automatically by searching the text
                 options.forEach(opt => {
-                    if (opt.innerText === 'h1' || opt.innerText === 'background-color') {
+                    if (opt.innerText === correctAnswer) {
                         opt.classList.add('correct');
                     }
                 });
             }
         }
 
-        // Initial Progress
-        document.getElementById('progress-bar').style.width = '12.5%';
+        // Load Quiz Questions
+        const questionsList = [
+            { q: "¿Qué etiqueta define el título principal?", a: ["header", "h1", "title"], c: 1 },
+            { q: "Propiedad para cambiar el color de fondo en CSS:", a: ["color", "background-color", "bg"], c: 1 },
+            { q: "Comando para iniciar un repositorio Git:", a: ["git start", "git init", "git new"], c: 1 },
+            { q: "Etiqueta para crear un enlace (vínculo):", a: ["<link>", "<a>", "<href>"], c: 1 },
+            { q: "Comando para guardar cambios localmente:", a: ["git save", "git commit", "git upload"], c: 1 },
+            { q: "Símbolo para seleccionar un ID en CSS:", a: [".", "#", "*"], c: 1 },
+            { q: "Palabra clave para declarar una variable constante en JS:", a: ["var", "let", "const"], c: 2 },
+            { q: "¿Qué significa Git Status?", a: ["Estado de archivos", "Subir archivos", "Borrar archivos"], c: 0 },
+            { q: "Propiedad CSS para redondear bordes:", a: ["border-round", "border-radius", "corner"], c: 1 },
+            { q: "Etiqueta para una lista no ordenada:", a: ["<ol>", "<ul>", "<li>"], c: 1 },
+            { q: "Comando para ver el historial de commits:", a: ["git history", "git log", "git show"], c: 1 },
+            { q: "Atributo para la ruta de una imagen:", a: ["href", "src", "link"], c: 1 },
+            { q: "¿Cómo se llama el área de preparación en Git?", a: ["Staging Area", "Cloud Area", "Commit Area"], c: 0 },
+            { q: "Propiedad CSS para el espacio INTERNO de un elemento:", a: ["margin", "padding", "border"], c: 1 },
+            { q: "¿Para qué sirve el comando git add .?", a: ["Subir a GitHub", "Preparar archivos", "Crear rama"], c: 1 },
+            { q: "Operador de igualdad estricta en JavaScript:", a: ["==", "=", "==="], c: 2 },
+            { q: "¿Cuál es la extensión de archivos de estilos?", a: [".html", ".js", ".css"], c: 2 },
+            { q: "Comando para crear una nueva rama:", a: ["git branch", "git checkout -b", "Ambas"], c: 2 },
+            { q: "Etiqueta HTML para el contenedor genérico de bloque:", a: ["<span>", "<div>", "<section>"], c: 1 },
+            { q: "¿Cómo se envían los cambios a un servidor remoto?", a: ["git push", "git send", "git remote"], c: 0 },
+            { q: "Propiedad para cambiar el tipo de fuente:", a: ["font-style", "font-family", "text-font"], c: 1 },
+            { q: "¿Qué hace 'git pull'?", a: ["Baja cambios", "Sube cambios", "Borra archivos"], c: 0 },
+            { q: "Mensaje obligatorio en un commit:", a: ["-m", "-msg", "-text"], c: 0 },
+            { q: "Etiqueta para párrafos de texto:", a: ["<text>", "<p>", "<span>"], c: 1 },
+            { q: "Valor de 'display' para diseño flexible:", a: ["block", "grid", "flex"], c: 2 },
+            { q: "Función de JS para imprimir en consola:", a: ["print()", "console.log()", "println()"], c: 1 },
+            { q: "¿Qué etiqueta contiene los metadatos del sitio?", a: ["<body>", "<head>", "<footer>"], c: 1 },
+            { q: "Comando para unir una rama con la principal:", a: ["git unite", "git branch --add", "git merge"], c: 2 },
+            { q: "Propiedad CSS para ocultar un elemento:", a: ["display:none", "visible:false", "hide:true"], c: 0 },
+            { q: "Estructura iterativa básica en JS:", a: ["if", "for", "switch"], c: 1 }
+        ];
+
+        // Command Catalog
+        const commands = {
+            'cfg-name': { c: 'git config --global user.name "Tu Nombre"', o: 'Configurado nombre de usuario' },
+            'cfg-email': { c: 'git config --global user.email "tu@correo.com"', o: 'Configurado email de usuario' },
+            'git-init': { c: 'git init', o: 'Repositorio vacío inicializado en .git/' },
+            'git-add': { c: 'git add .', o: 'Archivos añadidos al staging area' },
+            'git-commit': { c: 'git commit -m "Primer commit"', o: '1 file changed, 10 insertions(+)' },
+            'git-branch': { c: 'git branch menu-lateral', o: 'Rama menu-lateral creada' },
+            'git-checkout': { c: 'git checkout menu-lateral', o: 'Cambiado a rama menu-lateral' },
+            'git-merge': { c: 'git merge menu-lateral', o: 'Updating main... Fast-forward' },
+            'git-remote': { c: 'git remote add origin https://github.com/usuario/repo.git', o: 'Repositorio remoto vinculado' },
+            'git-push': { c: 'git push -u origin main', o: 'Enumerating objects: 5, done. Total 5 (delta 0)' }
+        };
+
+        function runSim(id, level) {
+            const cmd = commands[id];
+            if(cmd) simulate(cmd.c, cmd.o, level);
+        }
+
+        function loadQuiz() {
+            const container = document.getElementById('quiz-dynamic-content');
+            if(!container) return;
+            questionsList.forEach((item, idx) => {
+                const qDiv = document.createElement('div');
+                qDiv.className = 'question';
+                qDiv.innerHTML = `
+                    <p>${idx + 1}. ${item.q}</p>
+                    <div class="options">
+                        ${item.a.map((opt, i) => `
+                            <button class="option-btn" onclick="checkAnswer(this, ${i === item.c}, '${item.a[item.c]}')">${opt}</button>
+                        `).join('')}
+                    </div>
+                `;
+                container.appendChild(qDiv);
+            });
+        }
+
+        // Initial Progress & Load Quiz
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('progress-bar').style.width = '12.5%';
+            loadQuiz();
+        });
     </script>
 </body>
 </html>
