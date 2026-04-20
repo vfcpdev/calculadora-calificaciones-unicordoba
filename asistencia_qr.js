@@ -241,77 +241,106 @@ function generateStudentQRCards() {
 document.getElementById('btn-activate-camera').addEventListener('click', startScanner);
 
 function startScanner() {
-    if (scanner) return;
+    if (videoStream) return;
     
-    document.getElementById('btn-activate-camera').innerText = 'Iniciando...';
-    document.getElementById('camera-status').innerText = 'Solicitando permisos...';
+    document.getElementById('btn-activate-camera').innerText = 'Iniciando jsQR...';
+    document.getElementById('camera-status').innerText = 'Solicitando acceso a la cámara matriz...';
     
     document.getElementById('camera-controls').style.display = 'none';
     document.getElementById('reader-container').style.display = 'block';
     
-    // Clean element completely before creating a new instance
-    const readerDiv = document.getElementById('reader');
-    readerDiv.innerHTML = '<div style="padding:2rem; text-align:center; color:var(--text-muted)">Iniciando lente de la cámara...</div>';
+    const video = document.getElementById("qr-video");
+    const canvasElement = document.getElementById("qr-canvas");
+    const canvas = canvasElement.getContext("2d", { willReadFrequently: true });
     
-    // Pass formatsToSupport statically to force ONLY QR codes. 
-    // This stops it from hallucinating barcodes in low-light noise!
-    scanner = new Html5Qrcode("reader", { formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ] });
-    
-    // Safe responsive QR box size
-    const screenWidth = Math.min(window.innerWidth, 500); 
-    const qrboxSize = screenWidth < 400 ? 220 : 250;
-
-    const config = { 
-        fps: 10, // Slower FPS = More time per frame for the ZXing engine to process blurry dark webcams
-        qrbox: { width: qrboxSize, height: qrboxSize },
-        // Eliminating strict HD video constraints. In low light, forcing HD causes the webcam 
-        // to drastically drop shutter speed, causing immense motion blur on the phone screen.
-        // Let the browser pick its native stable resolution.
-        experimentalFeatures: {
-            useBarCodeDetectorIfSupported: false // OVERRIDE: ZXing is vastly superior for blurry/glowing phone screens than native.
-        }
-    };
-
-    scanner.start(
-        { facingMode: "user" }, // Force internal webcam
-        config,
-        (decodedText) => {
-            // Decoded successfully
-            if (navigator.vibrate) navigator.vibrate(100);
-            document.getElementById('debug-raw').innerText = `✅ ¡Código Capturado!: ${decodedText}`;
-            handleScan(decodedText);
-        }
-    ).then(() => {
-        showToast('✅ Cámara de PC activa y lista');
-        document.getElementById('camera-status').innerText = '📷 Cámara activa - Muestra el QR del celular a la cámara';
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } }).then(function(stream) {
+        videoStream = stream;
+        video.srcObject = stream;
+        video.setAttribute("playsinline", true); // required to tell iOS safari we don't want fullscreen
+        video.style.display = "block";
+        video.play();
         
-        // Show the beautiful targeting overlay!
+        showToast('✅ Motor jsQR nativo activado');
+        document.getElementById('camera-status').innerText = '📷 Cámara activa - Muestra el QR a la pantalla';
         document.getElementById('scanner-overlay').style.display = 'flex';
         
-        if(document.activeElement) document.activeElement.blur();
+        scanInterval = requestAnimationFrame(tick);
+        
+        function tick() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                // HARDWARE DOWNSCALER: Clamp processing size to prevent 4K/1080p webcams from mathematically freezing the CPU.
+                // We maintain aspect ratio but ensure the longest side is Max 600px
+                const maxDim = 500;
+                let drawWidth = video.videoWidth;
+                let drawHeight = video.videoHeight;
+                
+                if (drawWidth > maxDim || drawHeight > maxDim) {
+                    const ratio = Math.min(maxDim / drawWidth, maxDim / drawHeight);
+                    drawWidth = Math.floor(drawWidth * ratio);
+                    drawHeight = Math.floor(drawHeight * ratio);
+                }
+
+                canvasElement.width = drawWidth;
+                canvasElement.height = drawHeight;
+                
+                // Draw downscaled frame
+                canvas.drawImage(video, 0, 0, drawWidth, drawHeight);
+                // Extract optimized pixel data
+                var imageData = canvas.getImageData(0, 0, drawWidth, drawHeight);
+                
+                // Fire native jsQR with Inversion Fallback (dark mode / glare rescue)
+                var code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "attemptBoth",
+                });
+                
+                if (code && code.data && String(code.data).trim() !== "") {
+                    // Success!
+                    if (navigator.vibrate) navigator.vibrate(100);
+                    document.getElementById('debug-raw').innerText = `✅ LECTURA EXITOSA: ${code.data}`;
+                    
+                    // Route to attendance loop
+                    handleScan(code.data);
+                } else {
+                    document.getElementById('debug-raw').innerText = `Rastreando matrices a ${drawWidth}x${drawHeight}...`;
+                }
+            }
+            // Continuous polling
+            if(videoStream) {
+                // Throttle slightly to cool down CPU overhead (approx 20 FPS is more than enough for QR)
+                setTimeout(() => {
+                    scanInterval = requestAnimationFrame(tick);
+                }, 50);
+            }
+        }
     }).catch(err => {
         console.error('Camera error:', err);
         document.getElementById('camera-controls').style.display = 'block';
         document.getElementById('reader-container').style.display = 'none';
         document.getElementById('scanner-overlay').style.display = 'none';
-        document.getElementById('btn-activate-camera').innerText = 'Reintentar (Cámara)';
+        document.getElementById('btn-activate-camera').innerText = 'Forzar Activación de Cámara';
         
-        document.getElementById('camera-status').innerHTML = `<span style="color:var(--danger)">Error: No se pudo acceder a la cámara web. Otorga los permisos.</span>`;
-        showToast('Acceso a cámara rechazado', 'error');
+        document.getElementById('camera-status').innerHTML = `<span style="color:var(--danger)">Error de Hardware: Permiso denegado o cámara bloqueada por Windows.</span>`;
+        showToast('Falla en acceso a hardware', 'error');
     });
 }
 
 function stopScanner() {
-    if (scanner) {
-        scanner.stop().then(() => {
-            scanner = null;
-            document.getElementById('camera-controls').style.display = 'block';
-            document.getElementById('reader-container').style.display = 'none';
-            document.getElementById('scanner-overlay').style.display = 'none';
-            document.getElementById('btn-activate-camera').innerText = 'Activar Cámara';
-            document.getElementById('camera-status').innerText = 'Cámara apagada';
-        }).catch(err => console.error("Stop error:", err));
+    if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+        videoStream = null;
     }
+    if (scanInterval) {
+        cancelAnimationFrame(scanInterval);
+        scanInterval = null;
+    }
+    const video = document.getElementById("qr-video");
+    if(video) video.style.display = "none";
+    
+    document.getElementById('camera-controls').style.display = 'block';
+    document.getElementById('reader-container').style.display = 'none';
+    document.getElementById('scanner-overlay').style.display = 'none';
+    document.getElementById('btn-activate-camera').innerText = 'Activar Cámara Fija / PC';
+    document.getElementById('camera-status').innerText = 'Lente nativo apagado';
 }
 
 // ============================
