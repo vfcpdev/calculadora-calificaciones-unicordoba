@@ -1,6 +1,7 @@
 // ============================
 // State Management
 // ============================
+const sanitizeID = (val) => String(val || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 let studentList = JSON.parse(localStorage.getItem('qr_att_v3_students')) || [];
 let attendanceLogs = JSON.parse(localStorage.getItem('qr_att_v3_logs')) || [];
 let videoStream = null;
@@ -72,30 +73,17 @@ document.getElementById('excel-input').addEventListener('change', (e) => {
             studentList = [];
 
             json.forEach((row, index) => {
-                // The user explicitly stated: Row 1 (index 0) is the Header. 
-                // Always skip it mechanically to prevent it treating the header as a student.
-                if (index === 0) {
-                    return; 
-                }
+                if (index === 0) return; 
 
-                // STRICT DEFINITION:
-                // Column B (row.B) = The Student ID (Number)
-                // Column C (row.C) = The Student Full Name
-                
-                let idRaw = String(row.B || '').trim();
+                let idRaw = String(row.B || row.A || '').trim();
                 let nameRaw = String(row.C || '').trim();
                 
-                // If the second column is empty but the first has an ID, fallback safely
-                if (!idRaw && row.A) idRaw = String(row.A).trim(); 
-
-                const idClean = idRaw.replace(/\D/g, ''); // Extract digits
-                const finalId = idClean || idRaw; // Prefer digits, fallback to whatever is there
+                const finalId = sanitizeID(idRaw); // ID Siempre limpio
                 const finalName = nameRaw || 'Estudiante Sin Nombre';
 
-                // Ensure it's a valid row
                 if (finalId !== '' && finalName !== 'Estudiante Sin Nombre') {
                     studentList.push({
-                        id: finalId, // Strictly the student number
+                        id: finalId,
                         fullName: finalName
                     });
                 }
@@ -129,8 +117,15 @@ document.getElementById('excel-input').addEventListener('change', (e) => {
 // ============================
 function updateStats() {
     document.getElementById('count-students').innerText = studentList.length;
-    document.getElementById('count-present').innerText = attendanceLogs.length;
-    const percent = studentList.length > 0 ? Math.round((attendanceLogs.length / studentList.length) * 100) : 0;
+    
+    // Solo contamos estudiantes de la lista que tengan al menos un registro de asistencia
+    const presentCount = studentList.filter(s => 
+        attendanceLogs.some(log => sanitizeID(log.id) === sanitizeID(s.id))
+    ).length;
+
+    document.getElementById('count-present').innerText = presentCount;
+    
+    const percent = studentList.length > 0 ? Math.round((presentCount / studentList.length) * 100) : 0;
     document.getElementById('percent-present').innerText = `${percent}%`;
 }
 
@@ -173,18 +168,10 @@ function generateStudentQRCards() {
         // The href will be populated asynchronously
         downloadLink.href = '#';
 
-        // Add feedback when eventually clicked
-        downloadLink.addEventListener('click', () => {
-            showToast(`✅ Iniciando descarga de ${s.fullName}`);
-        });
-
         item.appendChild(downloadLink);
         grid.appendChild(item);
 
-        // Generate visual QR natively at 400x400
-        // CRITICAL FIX: Changed from High (H) to Low (L) correctLevel.
-        // This generates massive, thick black squares instead of tiny dots, 
-        // defeating webcam blur and surviving smartphone screen flare in dark rooms.
+        // GENERACIÓN DEL QR (Restaurado con Nivel L para máxima compatibilidad)
         new QRCode(qrDiv, {
             text: s.id,
             width: 400, 
@@ -194,28 +181,33 @@ function generateStudentQRCards() {
             correctLevel: QRCode.CorrectLevel.L
         });
 
-        // The absolute foolproof way to bypass Chrome's block on programmatic clicks
-        // is to make the button a REAL physical link pointing to a REAL Blob URL.
-        // We poll briefly until qrcode.js finishes generating the canvas.
+        // Evento de descarga efectiva usando saveAs (FileSaver.js)
+        downloadLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            const canvasEl = qrDiv.querySelector('canvas');
+            const imgEl = qrDiv.querySelector('img');
+            
+            if (canvasEl) {
+                canvasEl.toBlob((blob) => {
+                    saveAs(blob, fileName);
+                    showToast(`✅ Descargado: ${s.fullName}`);
+                }, 'image/png');
+            } else if (imgEl && imgEl.src) {
+                saveAs(imgEl.src, fileName);
+                showToast(`✅ Descargado: ${s.fullName}`);
+            }
+        });
+
+        // Monitoreo de renderizado para habilitar el botón
         let checkRenderInterval = setInterval(() => {
             const canvasEl = qrDiv.querySelector('canvas');
+            const imgEl = qrDiv.querySelector('img');
             
-            // Once the canvas is fully mounted by qrcode.js:
-            if (canvasEl) {
+            if (canvasEl || (imgEl && imgEl.src)) {
                 clearInterval(checkRenderInterval);
-                
-                // Export the canvas immediately to a Blob URL
-                canvasEl.toBlob((blob) => {
-                    const blobUrl = URL.createObjectURL(blob);
-                    
-                    // Attach the Blob strictly to the <a> tag
-                    downloadLink.href = blobUrl;
-                    
-                    // Enable the button natively
-                    downloadLink.style.opacity = '1';
-                    downloadLink.style.pointerEvents = 'auto';
-                    downloadLink.textContent = `⬇️ Descargar QR de ${s.fullName}`;
-                }, 'image/png');
+                downloadLink.style.opacity = '1';
+                downloadLink.style.pointerEvents = 'auto';
+                downloadLink.textContent = `⬇️ Descargar QR de ${s.fullName}`;
             }
         }, 150);
 
@@ -283,8 +275,11 @@ function startScanner() {
                 canvasElement.width = drawWidth;
                 canvasElement.height = drawHeight;
                 
-                // Draw downscaled frame
+                // MEJORA DE IMAGEN: Ayuda a webcams de PC con el brillo de pantallas móviles
+                canvas.filter = "contrast(130%) brightness(110%)"; 
                 canvas.drawImage(video, 0, 0, drawWidth, drawHeight);
+                canvas.filter = "none";
+                
                 // Extract optimized pixel data
                 var imageData = canvas.getImageData(0, 0, drawWidth, drawHeight);
                 
@@ -347,9 +342,7 @@ function stopScanner() {
 // Handle Scan Result
 // ============================
 function handleScan(decodedText) {
-    // 100% exact match without aggressive stripping, just trim spaces.
-    // If the QR generated '123456', decodedText will be '123456'.
-    const scannedClean = String(decodedText).trim();
+    const scannedClean = sanitizeID(decodedText);
     
     console.log(`SCAN: raw="${decodedText}" clean="${scannedClean}"`);
     
@@ -358,8 +351,8 @@ function handleScan(decodedText) {
         return;
     }
     
-    // Find student by matching exactly
-    const student = studentList.find(s => String(s.id).trim() === scannedClean);
+    // Match using sanitized comparison
+    const student = studentList.find(s => sanitizeID(s.id) === scannedClean);
     
     const studentId = student ? student.id : scannedClean;
     const studentName = student ? student.fullName : "Desconocido (QR Externo)";
