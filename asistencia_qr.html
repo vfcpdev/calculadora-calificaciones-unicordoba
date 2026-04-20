@@ -16,9 +16,10 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip/dist/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
     <!-- Custom Styles -->
-    <link rel="stylesheet" href="asistencia_qr.css">
+    <link rel="stylesheet" href="asistencia_qr.css?v=20260420c">
 </head>
 
 <body>
@@ -116,8 +117,14 @@
                     </p>
                 </div>
 
-                <div id="reader-container" style="display: none;">
+                <div id="reader-container" style="display: none; position: relative;">
                     <div id="reader"></div>
+                    <!-- MIRA LÁSER ANIMADA Y RECUADRO DE ENFOQUE -->
+                    <div class="scanner-overlay" id="scanner-overlay" style="display: none;">
+                        <div class="scanner-box">
+                            <div class="scanner-line"></div>
+                        </div>
+                    </div>
                     <div id="debug-raw"
                         style="margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: var(--primary);">
                         Esperando lectura...</div>
@@ -154,10 +161,9 @@
                         <thead>
                             <tr>
                                 <th>ID / Código</th>
-                                <th>Apellidos</th>
-                                <th>Nombres</th>
+                                <th colspan="2">Nombre Completo</th>
                                 <th>Fecha</th>
-                                <th>Hora Exacta</th>
+                                <th>Hora</th>
                                 <th>Estado</th>
                             </tr>
                         </thead>
@@ -180,7 +186,7 @@
     <div id="qr-hidden" style="display: none;"></div>
 
     <!-- Custom Logic -->
-    <script src="asistencia_qr.js"></script>
+    <script src="asistencia_qr.js?v=20260420_finalx3"></script>
 </body>
 
 </html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test QR Download</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body style="background:#1e293b; color:white; padding:2rem; font-family:sans-serif;">
+    <h2>Test de Descarga QR</h2>
+    
+    <div id="qr-container" style="background:white; display:inline-block; padding:20px; border-radius:10px;"></div>
+    
+    <br><br>
+    
+    <button id="btn-method1" style="padding:10px 20px; margin:5px; font-size:16px; cursor:pointer;">
+        Método 1: Data URL directo
+    </button>
+    <button id="btn-method2" style="padding:10px 20px; margin:5px; font-size:16px; cursor:pointer;">
+        Método 2: Blob URL
+    </button>
+    <button id="btn-method3" style="padding:10px 20px; margin:5px; font-size:16px; cursor:pointer;">
+        Método 3: Abrir en nueva pestaña
+    </button>
+    
+    <pre id="log" style="background:#0f172a; padding:1rem; margin-top:1rem; border-radius:8px; font-size:14px;"></pre>
+    
+    <script>
+        const log = (msg) => {
+            document.getElementById('log').textContent += msg + '\n';
+            console.log(msg);
+        };
+        
+        // Generate QR
+        const qrDiv = document.getElementById('qr-container');
+        new QRCode(qrDiv, {
+            text: "1062432634",
+            width: 256,
+            height: 256,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+        
+        // Wait and inspect
+        setTimeout(() => {
+            const img = qrDiv.querySelector('img');
+            const canvas = qrDiv.querySelector('canvas');
+            
+            log('=== QR Element Inspection ===');
+            log('IMG exists: ' + !!img);
+            log('IMG src starts with data:image: ' + (img ? img.src.startsWith('data:image') : false));
+            log('IMG src length: ' + (img ? img.src.length : 0));
+            log('CANVAS exists: ' + !!canvas);
+            log('CANVAS display: ' + (canvas ? canvas.style.display : 'N/A'));
+            log('CANVAS width: ' + (canvas ? canvas.width : 'N/A'));
+            
+            // Method 1: Direct data URL
+            document.getElementById('btn-method1').onclick = () => {
+                log('\n--- Method 1: Data URL ---');
+                if (img && img.src.startsWith('data:image')) {
+                    const a = document.createElement('a');
+                    a.href = img.src;
+                    a.download = 'QR_TEST_METHOD1.png';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    log('Click dispatched on anchor with data URL');
+                } else {
+                    log('ERROR: No valid img src found');
+                }
+            };
+            
+            // Method 2: Blob URL
+            document.getElementById('btn-method2').onclick = () => {
+                log('\n--- Method 2: Blob URL ---');
+                if (img && img.src.startsWith('data:image')) {
+                    fetch(img.src)
+                        .then(r => r.blob())
+                        .then(blob => {
+                            log('Blob created, size: ' + blob.size + ' bytes');
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'QR_TEST_METHOD2.png';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                            log('Click dispatched on anchor with blob URL');
+                        })
+                        .catch(e => log('Blob error: ' + e));
+                } else if (canvas) {
+                    log('Using canvas fallback...');
+                    canvas.toBlob(blob => {
+                        log('Canvas blob size: ' + blob.size);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'QR_TEST_METHOD2.png';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        log('Click dispatched');
+                    }, 'image/png');
+                }
+            };
+            
+            // Method 3: Open in new tab
+            document.getElementById('btn-method3').onclick = () => {
+                log('\n--- Method 3: New Tab ---');
+                if (img && img.src.startsWith('data:image')) {
+                    window.open(img.src, '_blank');
+                    log('Opened in new tab - right click to save');
+                } else {
+                    log('ERROR: No valid img src');
+                }
+            };
+            
+        }, 1000);
+    </script>
+</body>
+</html>
