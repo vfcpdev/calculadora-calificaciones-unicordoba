@@ -171,7 +171,7 @@ function generateStudentQRCards() {
         item.appendChild(downloadLink);
         grid.appendChild(item);
 
-        // GENERACIÓN DEL QR (Restaurado con Nivel L para máxima compatibilidad)
+        // GENERACIÓN DEL QR (Nivel L para máxima compatibilidad)
         new QRCode(qrDiv, {
             text: s.id,
             width: 400, 
@@ -181,24 +181,7 @@ function generateStudentQRCards() {
             correctLevel: QRCode.CorrectLevel.L
         });
 
-        // Evento de descarga efectiva usando saveAs (FileSaver.js)
-        downloadLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            const canvasEl = qrDiv.querySelector('canvas');
-            const imgEl = qrDiv.querySelector('img');
-            
-            if (canvasEl) {
-                canvasEl.toBlob((blob) => {
-                    saveAs(blob, fileName);
-                    showToast(`✅ Descargado: ${s.fullName}`);
-                }, 'image/png');
-            } else if (imgEl && imgEl.src) {
-                saveAs(imgEl.src, fileName);
-                showToast(`✅ Descargado: ${s.fullName}`);
-            }
-        });
-
-        // Monitoreo de renderizado para habilitar el botón
+        // MONITOREO DE RENDERIZADO Y ACTIVACIÓN DE DESCARGA (La solución efectiva)
         let checkRenderInterval = setInterval(() => {
             const canvasEl = qrDiv.querySelector('canvas');
             const imgEl = qrDiv.querySelector('img');
@@ -206,10 +189,10 @@ function generateStudentQRCards() {
             if (canvasEl || (imgEl && imgEl.src)) {
                 clearInterval(checkRenderInterval);
                 
-                // Sincronizamos el href solo para evitar el detector de errores
+                // Extraemos la imagen (de canvas o img) y la inyectamos en el enlace
                 const qrImage = canvasEl ? canvasEl.toDataURL("image/png") : imgEl.src;
+                
                 downloadLink.href = qrImage;
-
                 downloadLink.style.opacity = '1';
                 downloadLink.style.pointerEvents = 'auto';
                 downloadLink.textContent = `⬇️ Descargar QR de ${s.fullName}`;
