@@ -2,6 +2,7 @@
 let studentList = JSON.parse(localStorage.getItem('qr_attendance_v2_students')) || [];
 let attendanceLogs = JSON.parse(localStorage.getItem('qr_attendance_v2_logs')) || [];
 let scanner = null;
+const scanSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
 
 // On Load
 window.addEventListener('load', () => {
@@ -54,18 +55,20 @@ document.getElementById('excel-input').addEventListener('change', (e) => {
                 const keys = Object.keys(row);
                 
                 // Explicit Mapping:
-                // Column B (Index 1) -> ID
-                // Column C (Index 2) -> Student Name
-                const idValue = row[keys[1]];
+                // Column B (Index 1) -> ID Number
+                // Column C (Index 2) -> Name
+                let idRaw = String(row[keys[1]] || '').trim();
+                // Extract ONLY digits for the QR code and ID matching
+                const idValue = idRaw.replace(/\D/g, ''); 
                 const nameValue = row[keys[2]];
                 
                 return {
                     firstName: String(nameValue || 'Estudiante').trim(),
                     lastName: '',
                     fullName: String(nameValue || 'Sin Nombre').trim(),
-                    id: String(idValue || 'N/A').trim()
+                    id: idValue || idRaw // Fallback to raw if no digits found
                 };
-            }).filter(s => s.id !== 'N/A' && s.fullName !== 'Sin Nombre');
+            }).filter(s => s.id && s.fullName !== 'Sin Nombre');
 
             localStorage.setItem('qr_attendance_v2_students', JSON.stringify(studentList));
             updateStats();
@@ -170,13 +173,12 @@ function startScanner() {
     
     scanner = new Html5Qrcode("reader");
     const config = { 
-        fps: 30,
-        qrbox: (viewfinderWidth, viewfinderHeight) => {
-            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-            const size = Math.floor(minEdge * 0.82);
-            return { width: size, height: size };
-        },
-        aspectRatio: 1.0
+        fps: 20,
+        qrbox: { width: 300, height: 300 },
+        aspectRatio: 1.0,
+        experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+        }
     };
 
     scanner.start(
@@ -258,8 +260,13 @@ function handleScan(decodedText) {
     attendanceLogs.unshift(logEntry);
     localStorage.setItem('qr_attendance_v2_logs', JSON.stringify(attendanceLogs));
     
-    updateAttendanceTable();
-    updateStats();
+    // Feedbacks
+    scanSound.play().catch(e => console.log("Sound error:", e));
+    
+    // Visual flash on reader
+    const reader = document.getElementById('reader');
+    reader.style.borderColor = 'var(--secondary)';
+    setTimeout(() => reader.style.borderColor = 'var(--primary)', 500);
 
     confetti({
         particleCount: 100,
