@@ -205,6 +205,11 @@ function generateStudentQRCards() {
             
             if (canvasEl || (imgEl && imgEl.src)) {
                 clearInterval(checkRenderInterval);
+                
+                // Sincronizamos el href solo para evitar el detector de errores
+                const qrImage = canvasEl ? canvasEl.toDataURL("image/png") : imgEl.src;
+                downloadLink.href = qrImage;
+
                 downloadLink.style.opacity = '1';
                 downloadLink.style.pointerEvents = 'auto';
                 downloadLink.textContent = `⬇️ Descargar QR de ${s.fullName}`;
