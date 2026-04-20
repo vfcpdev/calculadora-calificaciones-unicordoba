@@ -3,7 +3,8 @@
 // ============================
 let studentList = JSON.parse(localStorage.getItem('qr_att_v3_students')) || [];
 let attendanceLogs = JSON.parse(localStorage.getItem('qr_att_v3_logs')) || [];
-let scanner = null;
+let videoStream = null;
+let scanInterval = null;
 let lastScannedId = '';
 let lastScannedTime = 0;
 
