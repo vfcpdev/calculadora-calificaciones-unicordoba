@@ -181,39 +181,35 @@ function generateStudentQRCards() {
             correctLevel: QRCode.CorrectLevel.L
         });
 
-        // MONITOREO DE RENDERIZADO Y ACTIVACIÓN DE DESCARGA (Refactorización de Verificación de Integridad)
+        // MONITOREO DE RENDERIZADO Y ACTIVACIÓN DE DESCARGA (Motor Real-Link)
         let checkRenderInterval = setInterval(() => {
             const canvasEl = qrDiv.querySelector('canvas');
             const imgEl = qrDiv.querySelector('img');
             
-            // Verificamos que el elemento exista y tenga contenido
-            if (canvasEl || (imgEl && imgEl.src)) {
+            // Verificamos que qrcode.js haya terminado de inyectar la imagen
+            if (imgEl && imgEl.src && imgEl.src.startsWith('data:image')) {
                 clearInterval(checkRenderInterval);
                 
-                // Pequeño delay de sincronización para que el navegador termine de pintar el canvas
-                setTimeout(() => {
-                    if (canvasEl) {
-                        canvasEl.toBlob((blob) => {
-                            if (blob) {
-                                // Liberamos URL anterior si existiera por seguridad
-                                if (downloadLink.href && downloadLink.href.startsWith('blob:')) {
-                                    URL.revokeObjectURL(downloadLink.href);
-                                }
-                                const url = URL.createObjectURL(blob);
-                                downloadLink.href = url;
-                                downloadLink.style.opacity = '1';
-                                downloadLink.style.pointerEvents = 'auto';
-                                downloadLink.textContent = `⬇️ Descargar QR de ${s.fullName}`;
-                            }
-                        }, 'image/png');
-                    } else {
-                        // Fallback para imgEl
-                        downloadLink.href = imgEl.src;
+                // Asignamos la imagen directamente al href del botón
+                // Esto lo convierte en un enlace físico real de descarga
+                downloadLink.href = imgEl.src;
+                downloadLink.target = "_blank"; // Fallback de seguridad
+                downloadLink.style.opacity = '1';
+                downloadLink.style.pointerEvents = 'auto';
+                downloadLink.textContent = `⬇️ Descargar QR de ${s.fullName}`;
+            } else if (canvasEl) {
+                // Fallback si por alguna razón no hay img pero sí canvas
+                try {
+                    const dataUrl = canvasEl.toDataURL("image/png");
+                    if (dataUrl.length > 100) {
+                        clearInterval(checkRenderInterval);
+                        downloadLink.href = dataUrl;
+                        downloadLink.target = "_blank";
                         downloadLink.style.opacity = '1';
                         downloadLink.style.pointerEvents = 'auto';
                         downloadLink.textContent = `⬇️ Descargar QR de ${s.fullName}`;
                     }
-                }, 100);
+                } catch(e) {}
             }
         }, 150);
 
