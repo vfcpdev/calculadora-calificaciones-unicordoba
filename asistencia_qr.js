@@ -1,6 +1,6 @@
-// State Management
-let studentList = JSON.parse(localStorage.getItem('studentList')) || [];
-let attendanceLogs = JSON.parse(localStorage.getItem('attendanceLogs')) || [];
+// State Management (v2 labels to avoid caching old data)
+let studentList = JSON.parse(localStorage.getItem('qr_attendance_v2_students')) || [];
+let attendanceLogs = JSON.parse(localStorage.getItem('qr_attendance_v2_logs')) || [];
 let scanner = null;
 
 // On Load
@@ -53,26 +53,21 @@ document.getElementById('excel-input').addEventListener('change', (e) => {
             studentList = json.map(row => {
                 const keys = Object.keys(row);
                 
-                // Heuristic search for Name
-                const nameKey = keys.find(k => k.toLowerCase().includes('nombre') || k.toLowerCase().includes('completo')) || keys[0];
-                const lastNameKey = keys.find(k => k.toLowerCase().includes('apellido')) || null;
-                
-                // Heuristic for ID: Column B is usually keys[1] depending on how XLSX parses it.
-                // We'll prioritize keys[1] as it represents Column B in many Sheets.
-                const idKey = keys.find(k => k.toLowerCase().includes('id') || k.toLowerCase().includes('codigo') || k.toLowerCase().includes('documento')) || keys[1] || keys[0];
-                
-                let firstName = row[nameKey] || 'N/A';
-                let lastName = lastNameKey ? row[lastNameKey] : '';
+                // Explicit Mapping:
+                // Column B (Index 1) -> ID
+                // Column C (Index 2) -> Student Name
+                const idValue = row[keys[1]];
+                const nameValue = row[keys[2]];
                 
                 return {
-                    firstName: firstName,
-                    lastName: lastName,
-                    fullName: `${lastName} ${firstName}`.trim(),
-                    id: String(row[idKey] || 'N/A').trim()
+                    firstName: String(nameValue || 'Estudiante').trim(),
+                    lastName: '',
+                    fullName: String(nameValue || 'Sin Nombre').trim(),
+                    id: String(idValue || 'N/A').trim()
                 };
-            }).filter(s => s.firstName !== 'N/A');
+            }).filter(s => s.id !== 'N/A' && s.fullName !== 'Sin Nombre');
 
-            localStorage.setItem('studentList', JSON.stringify(studentList));
+            localStorage.setItem('qr_attendance_v2_students', JSON.stringify(studentList));
             updateStats();
             generatePrebuiltQRs();
             showToast(`Cargados ${studentList.length} estudiantes correctamente`);
@@ -110,83 +105,53 @@ function generatePrebuiltQRs() {
     const grid = document.getElementById('qr-preview-grid');
     grid.innerHTML = '';
     
-    studentList.slice(0, 8).forEach(s => {
+    studentList.forEach(s => {
         const item = document.createElement('div');
         item.className = 'qr-item';
+        
+        // Label with Name and ID
+        const info = document.createElement('div');
+        info.innerHTML = `
+            <div style="font-weight: 700; color: var(--primary); font-size: 0.9rem; margin-bottom: 0.2rem;">${s.fullName}</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.8rem;">ID: ${s.id}</div>
+        `;
+        item.appendChild(info);
+
         const qrDiv = document.createElement('div');
         qrDiv.id = `qr-preview-${s.id}`;
         item.appendChild(qrDiv);
-        const nameP = document.createElement('p');
-        nameP.innerText = s.fullName;
-        item.appendChild(nameP);
+        
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-primary';
+        btn.style.marginTop = '1rem';
+        btn.style.width = '100%';
+        btn.style.fontSize = '0.8rem';
+        btn.innerHTML = `⬇️ Bajar QR`;
+        
+        btn.onclick = () => {
+            const canvas = qrDiv.querySelector('canvas');
+            if (canvas) {
+                const url = canvas.toDataURL("image/png");
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `QR_${s.id}_${s.fullName.replace(/\s+/g, '_')}.png`;
+                a.click();
+            }
+        };
+
+        item.appendChild(btn);
         grid.appendChild(item);
 
         new QRCode(qrDiv, {
-            text: `${s.id}|${s.lastName}|${s.firstName}`,
-            width: 100,
-            height: 100,
-            colorDark: "#0f172a",
-            colorLight: "#ffffff"
+            text: s.id, // Simple ID in QR to match existing folder style
+            width: 150,
+            height: 150,
+            correctLevel: QRCode.CorrectLevel.H
         });
     });
 }
 
-document.getElementById('btn-generate-zip').addEventListener('click', async () => {
-    if (studentList.length === 0) {
-        showToast('Primero carga la lista de estudiantes', 'error');
-        return;
-    }
-
-    const btn = document.getElementById('btn-generate-zip');
-    btn.innerText = 'Generando...';
-    btn.disabled = true;
-
-    try {
-        const zip = new JSZip();
-        const tempDiv = document.getElementById('qr-hidden');
-
-        for (const student of studentList) {
-            tempDiv.innerHTML = '';
-            new QRCode(tempDiv, {
-                text: `${student.id}|${student.lastName}|${student.firstName}`,
-                width: 500,
-                height: 500
-            });
-
-            // Wait more for high-res generation
-            await new Promise(r => setTimeout(r, 250));
-            
-            let dataUrl = '';
-            const img = tempDiv.querySelector('img');
-            const canvas = tempDiv.querySelector('canvas');
-            
-            if (img && img.src && img.src.startsWith('data:image')) {
-                dataUrl = img.src;
-            } else if (canvas) {
-                dataUrl = canvas.toDataURL("image/png");
-            }
-
-            if (dataUrl) {
-                const base64 = dataUrl.split(',')[1];
-                zip.file(`${student.lastName}_${student.firstName}.png`, base64, { base64: true });
-            }
-        }
-
-        const content = await zip.generateAsync({ type: 'blob' });
-        const url = window.URL.createObjectURL(content);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `QRs_Estudiantes.zip`;
-        a.click();
-        showToast('¡ZIP generado y descargado!');
-    } catch (err) {
-        showToast('Error al generar el ZIP', 'error');
-        console.error(err);
-    } finally {
-        btn.innerText = 'Descargar ZIP de QRs';
-        btn.disabled = false;
-    }
-});
+// Bulk logic removed as requested for individual downloads
 
 // Attendance Scanner
 // Attendance Scanner Initialization
@@ -291,7 +256,7 @@ function handleScan(decodedText) {
     };
 
     attendanceLogs.unshift(logEntry);
-    localStorage.setItem('attendanceLogs', JSON.stringify(attendanceLogs));
+    localStorage.setItem('qr_attendance_v2_logs', JSON.stringify(attendanceLogs));
     
     updateAttendanceTable();
     updateStats();
@@ -300,7 +265,7 @@ function handleScan(decodedText) {
         particleCount: 100,
         spread: 70,
         origin: { y: 0.6 },
-        colors: ['#8b5cf6', '#10b981']
+        colors: ['#3b82f6', '#10b981']
     });
     showToast(`Presente: ${firstName} ${lastName}`, 'success');
 }
