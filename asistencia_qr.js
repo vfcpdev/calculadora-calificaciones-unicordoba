@@ -122,24 +122,8 @@ document.getElementById('excel-input').addEventListener('change', (e) => {
 });
 
 // ============================
-// Reset (Hard Delete)
-// ============================
-document.getElementById('btn-reset-data').addEventListener('click', () => {
-    if (confirm('🚨 ¿Estás seguro? Se borrará TODA la lista de estudiantes, el historial de asistencia y los QRs generados en este PC. Esto no se puede deshacer.')) {
-        
-        // Nuke Local and Session Storage entirely
-        localStorage.clear();
-        sessionStorage.clear();
-
-        // Visual Confirmation
-        alert('🧹 Memoria borrada con éxito. El sistema se reiniciará.');
-        
-        // Immediate Hard Reload to wipe memory map completely
-        window.location.reload(true);
-    }
-});
-
-// ============================
+// Reset handled natively via HTML onclick attribute mapped to button
+// ============================// ============================
 // Stats Update
 // ============================
 function updateStats() {

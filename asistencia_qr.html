@@ -11,7 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
 
     <!-- External Libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip/dist/jszip.min.js"></script>
@@ -76,6 +76,7 @@
                     <p id="file-status" style="font-size: 0.85rem; color: var(--secondary); display: none; margin: 0;">
                     </p>
                     <button class="btn" id="btn-reset-data"
+                        onclick="localStorage.clear(); sessionStorage.clear(); alert('🧹 Memoria RAM borrada por completo.'); window.location.href = window.location.pathname + '?r=' + Date.now();"
                         style="background: rgba(244, 63, 94, 0.1); color: var(--accent); border: 1px solid rgba(244, 63, 94, 0.2); padding: 0.4rem 0.8rem; font-size: 0.8rem; display: none;">
                         Limpiar Datos
                     </button>
@@ -117,8 +118,9 @@
                     </p>
                 </div>
 
-                <div id="reader-container" style="display: none; position: relative;">
-                    <div id="reader"></div>
+                <div id="reader-container" style="display: none; position: relative; width: 100%; aspect-ratio: 1/1; overflow: hidden; border-radius: 20px;">
+                    <video id="qr-video" style="width: 100%; height: 100%; object-fit: cover; display: none;" playsinline></video>
+                    <canvas id="qr-canvas" style="display: none;"></canvas>
                     <!-- MIRA LÁSER ANIMADA Y RECUADRO DE ENFOQUE -->
                     <div class="scanner-overlay" id="scanner-overlay" style="display: none;">
                         <div class="scanner-box">
