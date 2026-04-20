@@ -181,21 +181,39 @@ function generateStudentQRCards() {
             correctLevel: QRCode.CorrectLevel.L
         });
 
-        // MONITOREO DE RENDERIZADO Y ACTIVACIÓN DE DESCARGA (La solución efectiva)
+        // MONITOREO DE RENDERIZADO Y ACTIVACIÓN DE DESCARGA (Refactorización de Verificación de Integridad)
         let checkRenderInterval = setInterval(() => {
             const canvasEl = qrDiv.querySelector('canvas');
             const imgEl = qrDiv.querySelector('img');
             
+            // Verificamos que el elemento exista y tenga contenido
             if (canvasEl || (imgEl && imgEl.src)) {
                 clearInterval(checkRenderInterval);
                 
-                // Extraemos la imagen (de canvas o img) y la inyectamos en el enlace
-                const qrImage = canvasEl ? canvasEl.toDataURL("image/png") : imgEl.src;
-                
-                downloadLink.href = qrImage;
-                downloadLink.style.opacity = '1';
-                downloadLink.style.pointerEvents = 'auto';
-                downloadLink.textContent = `⬇️ Descargar QR de ${s.fullName}`;
+                // Pequeño delay de sincronización para que el navegador termine de pintar el canvas
+                setTimeout(() => {
+                    if (canvasEl) {
+                        canvasEl.toBlob((blob) => {
+                            if (blob) {
+                                // Liberamos URL anterior si existiera por seguridad
+                                if (downloadLink.href && downloadLink.href.startsWith('blob:')) {
+                                    URL.revokeObjectURL(downloadLink.href);
+                                }
+                                const url = URL.createObjectURL(blob);
+                                downloadLink.href = url;
+                                downloadLink.style.opacity = '1';
+                                downloadLink.style.pointerEvents = 'auto';
+                                downloadLink.textContent = `⬇️ Descargar QR de ${s.fullName}`;
+                            }
+                        }, 'image/png');
+                    } else {
+                        // Fallback para imgEl
+                        downloadLink.href = imgEl.src;
+                        downloadLink.style.opacity = '1';
+                        downloadLink.style.pointerEvents = 'auto';
+                        downloadLink.textContent = `⬇️ Descargar QR de ${s.fullName}`;
+                    }
+                }, 100);
             }
         }, 150);
 
