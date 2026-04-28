@@ -4,22 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QRAttendance - Sistema de Asistencia Premium</title>
+    <title>QRAttendance - Sistema de Asistencia Profesional</title>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- External Libraries -->
+    <!-- External Libraries (Keep global as they don't support ES6 modules easily) -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jszip/dist/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
     <!-- Custom Styles -->
-    <link rel="stylesheet" href="asistencia_qr.css?v=20260420c">
+    <link rel="stylesheet" href="asistencia_qr.css">
 </head>
 
 <body>
@@ -27,7 +25,7 @@
     <div class="container">
         <header>
             <div class="logo">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round">
                     <rect width="18" height="18" x="3" y="3" rx="2" />
                     <path d="M7 7h.01" />
@@ -37,13 +35,13 @@
                     <path d="M12 7v10" />
                     <path d="M7 12h10" />
                 </svg>
-                QRAttendance
+                <span class="text-gradient">QRAttendance</span>
             </div>
             <nav class="nav-tabs">
-                <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
-                <button class="tab-btn" onclick="switchTab('generator')">Generador QRs</button>
-                <button class="tab-btn" onclick="switchTab('scanner')">Escáner</button>
-                <button class="tab-btn" onclick="switchTab('history')">Asistencia</button>
+                <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+                <button class="tab-btn" data-tab="generator">Generador</button>
+                <button class="tab-btn" data-tab="scanner">Escáner</button>
+                <button class="tab-btn" data-tab="history">Asistencia</button>
             </nav>
         </header>
 
@@ -52,33 +50,30 @@
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-value" id="count-students">0</div>
-                    <div class="stat-label">Estudiantes Lista</div>
+                    <div class="stat-label">Total Estudiantes</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value" id="count-present">0</div>
-                    <div class="stat-label">Presentes Hoy</div>
+                    <div class="stat-label">Asistencia Hoy</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value" id="percent-present">0%</div>
-                    <div class="stat-label">Tasa de Asistencia</div>
+                    <div class="stat-label">Rendimiento</div>
                 </div>
             </div>
 
             <div class="card">
-                <div class="card-title">🚀 Primeros Pasos</div>
-                <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Carga tu archivo Excel de estudiantes para
-                    comenzar. El sistema detectará automáticamente los nombres.</p>
+                <div class="card-title">🚀 Configuración Inicial</div>
+                <p style="color: var(--text-muted); margin-bottom: 2rem;">Para comenzar, carga el archivo Excel (.xlsx) con la lista de estudiantes. El sistema procesará los datos localmente.</p>
                 <div class="input-group">
-                    <label>Archivo de Estudiantes (.xlsx, .xls)</label>
+                    <label>Base de Datos de Estudiantes</label>
                     <input type="file" id="excel-input" accept=".xlsx, .xls">
                 </div>
-                <div style="display: flex; gap: 1rem; align-items: center;">
-                    <p id="file-status" style="font-size: 0.85rem; color: var(--secondary); display: none; margin: 0;">
+                <div style="display: flex; gap: 1.5rem; align-items: center;">
+                    <p id="file-status" style="font-size: 0.9rem; color: var(--secondary); display: none; margin: 0; font-weight: 600;">
                     </p>
-                    <button class="btn" id="btn-reset-data"
-                        onclick="localStorage.clear(); sessionStorage.clear(); alert('🧹 Memoria RAM borrada por completo.'); window.location.href = window.location.pathname + '?r=' + Date.now();"
-                        style="background: rgba(244, 63, 94, 0.1); color: var(--accent); border: 1px solid rgba(244, 63, 94, 0.2); padding: 0.4rem 0.8rem; font-size: 0.8rem; display: none;">
-                        Limpiar Datos
+                    <button class="btn" id="btn-reset-data" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2); display: none;">
+                        Limpiar Sistema
                     </button>
                 </div>
             </div>
@@ -87,64 +82,47 @@
         <!-- Generator -->
         <div id="generator" class="section">
             <div class="card">
-                <div class="card-title">🖨️ Generador de QRs Individuales</div>
-                <p style="color: var(--text-muted); margin-bottom: 2rem;">Descarga el código QR de cada estudiante de
-                    forma independiente presionando su botón correspondiente.</p>
+                <div class="card-title">🖨️ Generador de Identidad QR</div>
+                <p style="color: var(--text-muted); margin-bottom: 2.5rem;">Aquí puedes visualizar y descargar los códigos QR individuales para cada estudiante registrado.</p>
 
                 <div class="qr-grid" id="qr-preview-grid">
-                    <!-- Los botones de descarga por estudiante aparecerán aquí -->
+                    <!-- Dynamic Content -->
                 </div>
             </div>
         </div>
 
-        <!-- Scanner -->
-        <div id="scanner" class="section">
-            <div class="card" style="text-align: center;">
-                <div class="card-title" style="justify-content: center;">📷 Escáner de Asistencia</div>
-
-                <div id="camera-controls" style="margin-bottom: 2rem;">
-                    <button class="btn btn-primary" id="btn-activate-camera"
-                        style="padding: 1.2rem 2.5rem; font-size: 1.1rem;">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path
-                                d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                            <circle cx="12" cy="13" r="4" />
-                        </svg>
-                        Activar Cámara
-                    </button>
-                    <p id="camera-status" style="margin-top: 1rem; color: var(--text-muted); font-size: 0.9rem;">
-                        Se requiere permiso del navegador para usar la cámara
-                    </p>
-                </div>
-
-                <div id="reader-container" style="display: none; position: relative; width: 100%; max-width: 500px; margin: 0 auto; aspect-ratio: 1/1; overflow: hidden; border-radius: 20px; background: #000;">
-                    <video id="qr-video" style="width: 100%; height: 100%; object-fit: contain; display: none;" playsinline></video>
-                    <canvas id="qr-canvas" style="display: none;"></canvas>
-                    <!-- MIRA LÁSER ANIMADA Y RECUADRO DE ENFOQUE -->
-                    <div class="scanner-overlay" id="scanner-overlay" style="display: none;">
+        <!-- Scanner Modal -->
+        <div id="scanner-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <button class="close-modal" id="btn-close-modal">&times;</button>
+                <div class="card-title" style="justify-content: center; margin-bottom: 2rem;">📷 Escaneo en Progreso</div>
+                
+                <div id="reader-container" style="width: 100%; max-width: 450px; margin: 0 auto; aspect-ratio: 1/1; background: #000; position: relative; border-radius: 24px; overflow: hidden; border: 4px solid var(--primary);">
+                    <video id="qr-video" style="display: none;" playsinline></video>
+                    <canvas id="qr-canvas" style="width: 100%; height: 100%; object-fit: cover;"></canvas>
+                    <div class="scanner-overlay" id="scanner-overlay" style="display: flex;">
                         <div class="scanner-box">
                             <div class="scanner-line"></div>
                         </div>
                     </div>
-                    <div id="debug-raw"
-                        style="margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: var(--primary);">
-                        Esperando lectura...</div>
-                    <button class="btn btn-secondary" onclick="stopScanner()"
-                        style="margin-top: 1rem; background: rgba(244, 63, 94, 0.2); color: var(--accent); border: 1px solid var(--accent);">
-                        Apagar Cámara
-                    </button>
                 </div>
 
-                <div
-                    style="margin-top: 1.5rem; border-top: 1px solid var(--glass-border); padding-top: 1rem; text-align: left; font-size: 0.9rem;">
-                    <p style="color: var(--secondary); font-weight: 600; margin-bottom: 0.5rem;">✓ Consejos para escaneo
-                        efectivo:</p>
-                    <ul style="list-style: none; color: var(--text-muted); line-height: 1.4;">
-                        <li>• Pide al estudiante que suba el brillo de su celular al máximo.</li>
-                        <li>• Mantén el celular paralelo a la cámara a unos 20cm de distancia.</li>
-                        <li>• Inclina ligeramente el móvil si hay reflejos de luces superiores.</li>
-                    </ul>
+                <p id="modal-status" style="margin-top: 1.5rem; color: var(--text-muted); font-size: 0.9rem;">
+                    Posiciona el código QR dentro del recuadro
+                </p>
+            </div>
+        </div>
+
+        <!-- Scanner Section (Trigger) -->
+        <div id="scanner" class="section">
+            <div class="card" style="text-align: center; padding: 4rem 2rem;">
+                <div class="card-title" style="justify-content: center; font-size: 1.8rem;">📷 Lector de Asistencia</div>
+                <p style="color: var(--text-muted); margin-bottom: 3rem;">Inicia la cámara para registrar la entrada de los alumnos de forma automática.</p>
+                
+                <div id="camera-controls">
+                    <button class="btn btn-primary" id="btn-activate-camera" style="padding: 1.5rem 4rem; font-size: 1.2rem; border-radius: 20px;">
+                        Activar Ventana de Escaneo
+                    </button>
                 </div>
             </div>
         </div>
@@ -152,9 +130,9 @@
         <!-- History -->
         <div id="history" class="section">
             <div class="card">
-                <div class="card-title">📋 Registro de Asistencia</div>
-                <div class="nav-tabs" style="justify-content: flex-end; margin-bottom: 1rem;">
-                    <button class="btn btn-secondary" id="btn-export-attendance">
+                <div class="card-title">
+                    <span>📋 Reporte de Asistencia</span>
+                    <button class="btn btn-secondary" id="btn-export-attendance" style="margin-left: auto; font-size: 0.85rem;">
                         Exportar a Excel
                     </button>
                 </div>
@@ -162,7 +140,7 @@
                     <table id="attendance-table">
                         <thead>
                             <tr>
-                                <th>ID / Código</th>
+                                <th>Código</th>
                                 <th colspan="2">Nombre Completo</th>
                                 <th>Fecha</th>
                                 <th>Hora</th>
@@ -170,7 +148,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <!-- Data rows will be injected here -->
+                            <!-- Dynamic Content -->
                         </tbody>
                     </table>
                 </div>
@@ -180,15 +158,14 @@
 
     <!-- Toast Notification -->
     <div id="toast" class="toast">
-        <div id="toast-icon"></div>
         <div id="toast-msg"></div>
     </div>
 
-    <!-- QR Hidden Container for generation -->
+    <!-- Hidden Utils -->
     <div id="qr-hidden" style="display: none;"></div>
 
-    <!-- Custom Logic -->
-    <script src="asistencia_qr.js?v=20260420_cpu_scaled"></script>
+    <!-- Modular Application Logic -->
+    <script type="module" src="js/AppController.js"></script>
 </body>
 
 </html>
