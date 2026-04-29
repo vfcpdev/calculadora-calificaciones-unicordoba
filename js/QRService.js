@@ -1,48 +1,100 @@
 /**
- * Handles QR code generation.
- * Responsibility: Generating QR images and managing their rendering.
+ * Handles QR code generation using the original davidshimjs/qrcode.js library.
+ * Responsibility: High-reliability file-level QR generation.
  */
 export class QRService {
     constructor() {
-        // qrcode.js must be loaded globally as it doesn't support ES6 modules natively
+        this.activeUrls = new Set();
     }
 
+    /**
+     * Generates a QR code in the container.
+     */
     generateQR(container, text) {
-        return new QRCode(container, {
-            text: text,
-            width: 400,
-            height: 400,
-            colorDark: "#000000",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.L
-        });
+        container.innerHTML = '';
+        try {
+            // davidshimjs constructor is synchronous and appends elements to container
+            return new QRCode(container, {
+                text: text,
+                width: 256,
+                height: 256,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        } catch (err) {
+            console.error("QR Generation Error:", err);
+            container.innerHTML = '<div style="color:red; font-size:0.7rem;">Error al generar</div>';
+            return null;
+        }
     }
 
-    async getQRDataURL(container) {
+    /**
+     * Consolidates the generated QR into a real File object.
+     */
+    async getQRFile(container, fileName = 'qrcode.png') {
         return new Promise((resolve) => {
             let attempts = 0;
-            const check = setInterval(() => {
-                const imgEl = container.querySelector('img');
-                const canvasEl = container.querySelector('canvas');
+            const interval = setInterval(() => {
+                const canvas = container.querySelector('canvas');
+                const img = container.querySelector('img');
                 
-                if (imgEl && imgEl.src && imgEl.src.startsWith('data:image')) {
-                    clearInterval(check);
-                    resolve(imgEl.src);
-                } else if (canvasEl) {
+                // qrcode.js might use canvas or img depending on browser
+                const source = canvas || img;
+                
+                if (source && (source.tagName === 'CANVAS' || (source.src && source.src.length > 100))) {
+                    clearInterval(interval);
+                    
                     try {
-                        const dataUrl = canvasEl.toDataURL("image/png");
-                        if (dataUrl.length > 100) {
-                            clearInterval(check);
-                            resolve(dataUrl);
+                        let finalCanvas = canvas;
+                        
+                        // If only image exists, we must draw it to a canvas to get a Blob/File
+                        if (!canvas && img) {
+                            finalCanvas = document.createElement('canvas');
+                            finalCanvas.width = img.width || 256;
+                            finalCanvas.height = img.height || 256;
+                            const ctx = finalCanvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0);
                         }
-                    } catch(e) {}
+
+                        // Consolidate with white background for visibility
+                        const ctx = finalCanvas.getContext('2d');
+                        ctx.globalCompositeOperation = 'destination-over';
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+
+                        finalCanvas.toBlob((blob) => {
+                            if (blob) {
+                                resolve(new File([blob], fileName, { type: 'image/png' }));
+                            } else {
+                                resolve(null);
+                            }
+                        }, 'image/png');
+                    } catch (e) {
+                        console.error("Consolidation error", e);
+                        resolve(null);
+                    }
+                    return;
                 }
 
-                if (attempts++ > 20) {
-                    clearInterval(check);
+                if (attempts++ > 40) {
+                    clearInterval(interval);
                     resolve(null);
                 }
-            }, 150);
+            }, 100);
         });
+    }
+
+    async getQRDataURL(container, fileName = 'qr_code.png') {
+        const file = await this.getQRFile(container, fileName);
+        if (!file) return null;
+        const url = URL.createObjectURL(file);
+        this.activeUrls.add(url);
+        return url;
+    }
+
+    revokeUrls() {
+        this.activeUrls.forEach(url => URL.revokeObjectURL(url));
+        this.activeUrls.clear();
     }
 }

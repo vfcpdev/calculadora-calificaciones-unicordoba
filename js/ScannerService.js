@@ -1,101 +1,150 @@
 /**
- * Handles QR scanning logic using jsQR.
- * Responsibility: Camera Hardware Interaction & Scanning.
+ * Handles QR scanning using native BarcodeDetector or jsQR fallback.
+ * Optimized for high-performance reading and maximum compatibility.
  */
 export class ScannerService {
-    constructor(videoElement, canvasElement, onScanCallback) {
-        this.video = videoElement;
-        this.canvas = canvasElement;
-        this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
-        this.onScan = onScanCallback;
-        this.stream = null;
-        this.animationId = null;
+    constructor(video, canvas, onScan) {
+        this.video = video;
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d', { willReadFrequently: true, alpha: false });
+        this.onScan = onScan;
         this.isScanning = false;
+        this.detector = null;
+        this.animationFrameId = null;
+        this.lastScanTime = 0;
+        this.scanLock = false;
+
+        // Hidden canvas for fallback processing
+        this.offscreenCanvas = document.createElement('canvas');
+        this.offscreenCtx = this.offscreenCanvas.getContext('2d', { willReadFrequently: true, alpha: false });
+
+        if ('BarcodeDetector' in window) {
+            try {
+                this.detector = new BarcodeDetector({ formats: ['qr_code'] });
+            } catch (e) {
+                console.warn("BarcodeDetector supported but failed to initialize:", e);
+            }
+        }
     }
 
     async start() {
-        // Stop any existing stream before starting a new one to prevent locks
-        this.stop();
+        if (this.isScanning) return;
         
         try {
-            this.stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment" }
-            });
-            this.video.srcObject = this.stream;
+            const constraints = {
+                video: {
+                    facingMode: "environment",
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                }
+            };
+
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            this.video.srcObject = stream;
             this.video.setAttribute("playsinline", true);
-            this.video.style.display = 'block';
+            
+            // Wait for video to be ready with dual check
+            await new Promise((resolve) => {
+                if (this.video.readyState >= 2) resolve();
+                this.video.onloadedmetadata = () => resolve();
+                setTimeout(resolve, 3000); // Fail-safe
+            });
+
             await this.video.play();
+
             this.isScanning = true;
             this._tick();
             return true;
         } catch (err) {
-            console.error("Scanner start error:", err);
+            console.error("Scanner Start Error:", err);
             throw err;
         }
     }
 
     stop() {
-        if (this.stream) {
-            this.stream.getTracks().forEach(track => {
-                track.stop();
-                track.enabled = false;
-            });
-            this.stream = null;
-        }
-        if (this.animationId) {
-            cancelAnimationFrame(this.animationId);
-            this.animationId = null;
-        }
-        if (this.video) {
-            this.video.pause();
-            this.video.srcObject = null;
-            this.video.removeAttribute("src");
-            this.video.load();
-            this.video.style.display = 'none';
-        }
         this.isScanning = false;
+        if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
+        if (this.video.srcObject) {
+            this.video.srcObject.getTracks().forEach(track => track.stop());
+            this.video.srcObject = null;
+        }
     }
 
     _tick() {
         if (!this.isScanning) return;
 
         if (this.video.readyState === this.video.HAVE_ENOUGH_DATA) {
-            // High-resolution processing for precision
-            const targetWidth = 640; 
-            const targetHeight = (this.video.videoHeight / this.video.videoWidth) * targetWidth;
+            const width = this.video.videoWidth;
+            const height = this.video.videoHeight;
 
-            this.canvas.width = targetWidth;
-            this.canvas.height = targetHeight;
-            
-            // Image Enhancement: Increase contrast and grayscale to make QR stand out
-            this.ctx.filter = "contrast(160%) brightness(110%) grayscale(100%)";
-            this.ctx.drawImage(this.video, 0, 0, targetWidth, targetHeight);
-            this.ctx.filter = "none";
-            
-            const imageData = this.ctx.getImageData(0, 0, targetWidth, targetHeight);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: "attemptBoth",
-            });
-            
-            if (code && code.data && code.data.trim() !== "") {
-                // Success! Give visual feedback on the canvas if possible
-                this._drawSuccessBox(code.location);
-                this.onScan(code.data);
+            if (this.canvas.width !== width || this.canvas.height !== height) {
+                this.canvas.width = width;
+                this.canvas.height = height;
+                this.offscreenCanvas.width = width;
+                this.offscreenCanvas.height = height;
+            }
+
+            // High-quality draw
+            this.ctx.drawImage(this.video, 0, 0, width, height);
+
+            const now = performance.now();
+            if (!this.scanLock && now - this.lastScanTime > 100) {
+                this.scanLock = true;
+                this._detectQR(width, height).finally(() => {
+                    this.scanLock = false;
+                    this.lastScanTime = now;
+                });
             }
         }
+        this.animationFrameId = requestAnimationFrame(() => this._tick());
+    }
 
-        this.animationId = requestAnimationFrame(() => this._tick());
+    async _detectQR(width, height) {
+        try {
+            // Stage 1: Native (if available)
+            if (this.detector) {
+                const barcodes = await this.detector.detect(this.video);
+                if (barcodes.length > 0) {
+                    this.onScan(barcodes[0].rawValue);
+                    this._drawSuccessBox(barcodes[0].boundingBox);
+                    return;
+                }
+            }
+
+            // Stage 2: jsQR Raw (Fastest and most compatible)
+            this.offscreenCtx.drawImage(this.video, 0, 0, width, height);
+            const imageData = this.offscreenCtx.getImageData(0, 0, width, height);
+            const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: "attemptBoth"
+            });
+
+            if (code) {
+                this.onScan(code.data);
+                this._drawSuccessBox(code.location);
+            }
+        } catch (e) {
+            console.error("Detection error:", e);
+        }
     }
 
     _drawSuccessBox(location) {
+        if (!location) return;
+        this.ctx.save();
         this.ctx.lineWidth = 4;
         this.ctx.strokeStyle = "#10b981";
-        this.ctx.beginPath();
-        this.ctx.moveTo(location.topLeftCorner.x, location.topLeftCorner.y);
-        this.ctx.lineTo(location.topRightCorner.x, location.topRightCorner.y);
-        this.ctx.lineTo(location.bottomRightCorner.x, location.bottomRightCorner.y);
-        this.ctx.lineTo(location.bottomLeftCorner.x, location.bottomLeftCorner.y);
-        this.ctx.closePath();
-        this.ctx.stroke();
+        
+        if (location.topLeftCorner) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(location.topLeftCorner.x, location.topLeftCorner.y);
+            this.ctx.lineTo(location.topRightCorner.x, location.topRightCorner.y);
+            this.ctx.lineTo(location.bottomRightCorner.x, location.bottomRightCorner.y);
+            this.ctx.lineTo(location.bottomLeftCorner.x, location.bottomLeftCorner.y);
+            this.ctx.closePath();
+            this.ctx.stroke();
+        } else if (location.x !== undefined) {
+            this.ctx.strokeRect(location.x, location.y, location.width, location.height);
+        }
+        this.ctx.restore();
     }
-}
+
+

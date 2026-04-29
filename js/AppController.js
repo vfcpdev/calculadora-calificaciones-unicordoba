@@ -3,277 +3,215 @@ import { ScannerService } from './ScannerService.js';
 import { QRService } from './QRService.js';
 import { ExportService } from './ExportService.js';
 
-/**
- * Main application controller.
- * Responsibility: Orchestrating the UI and services.
- */
 class AppController {
-    constructor() {
-        this.model = new AttendanceModel();
-        this.exportService = new ExportService();
-        this.qrService = new QRService();
-        
-        // Initialize UI Elements
-        this.video = document.getElementById("qr-video");
-        this.canvas = document.getElementById("qr-canvas");
-        
-        this.scanner = new ScannerService(this.video, this.canvas, (data) => this.handleScan(data));
-        
+    constructor(model, scannerService, qrService, exportService) {
+        this.model = model;
+        this.scanner = scannerService;
+        this.qrService = qrService;
+        this.exportService = exportService;
+        this.lastScannedId = null;
+        this.lastScannedTime = 0;
+        this.audioCtx = null;
         this.setupEventListeners();
         this.renderInitialUI();
     }
 
     setupEventListeners() {
-        // Tab Navigation
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => this.switchTab(e.target));
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', (e) => this.handleNavigation(e.currentTarget));
         });
 
-        // Excel Import
-        const excelInput = document.getElementById('excel-input');
-        if (excelInput) {
-            excelInput.addEventListener('change', (e) => this.handleExcelImport(e));
-        }
+        document.addEventListener('click', (e) => {
+            const id = e.target.id || e.target.closest('button')?.id;
+            if (id === 'btn-activate-camera') this.toggleCamera();
+            if (id === 'btn-export-attendance') this.exportData();
+            if (id === 'btn-download-all-qr') this.downloadAllQRs();
+            if (id === 'btn-reset-data') this.fullReset();
+            if (id === 'btn-clear-students') this.clearStudents();
+            if (id === 'btn-reset-attendance') this.resetAttendanceToday();
+        });
 
-        // Camera Activation
-        const camBtn = document.getElementById('btn-activate-camera');
-        if (camBtn) {
-            camBtn.addEventListener('click', () => this.startScanner());
-        }
+        document.getElementById('excel-input')?.addEventListener('change', (e) => this.handleImport(e));
+    }
 
-        // File-based QR Scan
-        const qrFileInput = document.getElementById('qr-file-input');
-        if (qrFileInput) {
-            qrFileInput.addEventListener('change', (e) => this.handleFileScan(e));
+    initAudio() {
+        if (!this.audioCtx) {
+            this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         }
-
-        // Export Button
-        const exportBtn = document.getElementById('btn-export-attendance');
-        if (exportBtn) {
-            exportBtn.addEventListener('click', () => this.exportData());
-        }
-
-        // Global Reset
-        const resetBtn = document.getElementById('btn-reset-data');
-        if (resetBtn) {
-            resetBtn.onclick = () => {
-                if (confirm('¿Seguro que deseas borrar toda la memoria RAM de la aplicación?')) {
-                    this.model.clearData();
-                    window.location.reload();
-                }
-            };
-        }
-
-        // Modal Close
-        const closeBtn = document.getElementById('btn-close-modal');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', () => this.stopScanner());
+        if (this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume();
         }
     }
 
-    async handleFileScan(e) {
+    handleNavigation(navItem) {
+        this.initAudio(); // Initialize audio on first navigation/click
+        const tabId = navItem.getAttribute('data-tab');
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        navItem.classList.add('active');
+        document.getElementById(tabId)?.classList.add('active');
+    }
+
+    async handleImport(e) {
+        this.initAudio();
         const file = e.target.files[0];
         if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            const img = new Image();
-            img.onload = () => {
-                const tempCanvas = document.createElement('canvas');
-                const tctx = tempCanvas.getContext('2d');
-                tempCanvas.width = img.width;
-                tempCanvas.height = img.height;
-                tctx.drawImage(img, 0, 0);
-                const imageData = tctx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-                if (code && code.data) {
-                    this.handleScan(code.data);
-                    this.showToast('✅ QR procesado desde archivo');
-                } else {
-                    this.showToast('❌ No se encontró un código QR válido en la imagen', 'error');
-                }
-            };
-            img.src = event.target.result;
-        };
-        reader.readAsDataURL(file);
+        try {
+            const students = await this.exportService.parseExcel(file);
+            this.model.setStudents(students);
+            this.renderInitialUI();
+            this.showToast(`✅ ${students.length} alumnos cargados`);
+        } catch (err) { 
+            console.error("Import failure:", err);
+            this.showToast('Error al cargar archivo', 'error'); 
+        } finally {
+            e.target.value = ''; // Reset to allow re-uploading same file
+        }
     }
 
     renderInitialUI() {
         this.updateStats();
         this.updateAttendanceTable();
-        if (this.model.students.length > 0) {
-            this.generateStudentQRCards();
-            this.showFileStatus();
-        }
+        this.renderLiveScannerList();
+        this.showFileStatus();
+        this.generateStudentQRCards();
     }
 
-    switchTab(targetBtn) {
-        const tabId = targetBtn.getAttribute('data-tab');
-        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        
-        document.getElementById(tabId).classList.add('active');
-        targetBtn.classList.add('active');
-
-        if (tabId !== 'scanner') {
-            this.stopScanner();
-        }
-    }
-
-    async handleExcelImport(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        try {
-            const students = await this.exportService.parseExcel(file);
-            this.model.setStudents(students);
-            this.renderInitialUI();
-            this.showToast(`Cargados ${students.length} estudiantes correctamente`);
-        } catch (err) {
-            console.error(err);
-            this.showToast('Error al leer el archivo Excel', 'error');
-        }
-    }
-
-    startScanner() {
-        const modal = document.getElementById('scanner-modal');
+    toggleCamera() {
+        this.initAudio();
+        const btn = document.getElementById('btn-activate-camera');
         const status = document.getElementById('modal-status');
-        const container = document.getElementById('reader-container');
-        
-        // Force immediate visibility
-        if (modal) {
-            modal.style.display = 'flex';
-            modal.style.zIndex = '9999';
+        if (this.scanner.isScanning) {
+            this.scanner.stop();
+            if (btn) btn.innerText = '🚀 Iniciar Escáner';
+            if (status) status.innerText = 'Estado: Inactivo';
+        } else {
+            this.scanner.start().then(() => {
+                if (btn) btn.innerText = '🛑 Detener Cámara';
+                if (status) status.innerText = '🟢 Cámara Activa';
+                this.showToast('Escáner activado');
+            }).catch(e => this.showToast('Error: ' + e.message, 'error'));
         }
-        if (container) container.style.display = 'block';
-        if (status) {
-            status.innerText = '⌛ Conectando con la cámara...';
-            status.style.color = 'var(--text-muted)';
-        }
-
-        // Attempt camera start
-        this.scanner.start().then(() => {
-            if (status) status.innerText = '📷 Cámara activa - Enfoca el QR';
-            this.showToast('✅ Escáner activado');
-        }).catch(err => {
-            console.error('Camera Error:', err);
-            if (status) {
-                status.innerHTML = `
-                    <div style="color:var(--danger); margin-bottom:1rem;">⚠️ Error de Cámara: ${err.message}</div>
-                    <button class="btn btn-secondary" onclick="app.startScanner()" style="font-size:0.8rem; padding:0.5rem 1rem;">
-                        🔄 Reintentar Conexión
-                    </button>
-                    <p style="font-size:0.8rem; margin-top:1rem; opacity:0.7;">Cierra otras apps que usen la cámara y pulsa reintentar.</p>
-                `;
-            }
-        });
     }
 
-    stopScanner() {
-        const modal = document.getElementById('scanner-modal');
-        if (modal) modal.style.display = 'none';
-        this.scanner.stop();
-    }
-
-    handleScan(decodedText) {
-        const sanitized = this.model.sanitizeID(decodedText);
-        
-        // Anti-bounce
-        if (this.lastScannedId === sanitized && (Date.now() - this.lastScannedTime) < 5000) return;
-
-        const student = this.model.getStudentById(decodedText);
+    handleScan(data) {
+        const sanitized = this.model.sanitizeID(data);
         const now = new Date();
-        
-        const logEntry = {
-            id: student ? student.id : decodedText,
-            fullName: student ? student.fullName : "Desconocido (QR Externo)",
-            date: now.toLocaleDateString(),
-            time: now.toLocaleTimeString(),
-            timestampRaw: now.toISOString(),
-            matched: !!student
-        };
+        const dateStr = now.toLocaleDateString();
 
-        this.model.addLog(logEntry);
+        // Anti-bounce
+        if (this.lastScannedId === sanitized && (Date.now() - this.lastScannedTime) < 3000) return;
+
+        const student = this.model.getStudentById(data);
+        const statusEl = document.getElementById('modal-status');
+
+        if (!student) {
+            this.playAudio(220, 0.4);
+            this.showToast('⚠️ No registrado', 'error');
+            if (statusEl) statusEl.innerHTML = '<span style="color:var(--danger)">⚠️ NO REGISTRADO</span>';
+            return;
+        }
+
+        // Check duplicates
+        if (this.model.logs.some(l => l.id === student.id && l.date === dateStr)) {
+            this.playAudio(330, 0.3);
+            this.showToast(`⚠️ ${student.fullName} ya registrado`, 'info');
+            if (statusEl) statusEl.innerHTML = '<span style="color:var(--accent)">❌ YA REGISTRADO</span>';
+            return;
+        }
+
+        // Success
+        this.model.addLog({ id: student.id, fullName: student.fullName, date: dateStr, time: now.toLocaleTimeString(), matched: true });
         this.lastScannedId = sanitized;
         this.lastScannedTime = Date.now();
 
-        this.updateAttendanceTable();
+        this.playAudio(880, 0.2);
+        
+        // Selective UI update (Do NOT call renderInitialUI here to avoid QR card regeneration)
         this.updateStats();
+        this.updateAttendanceTable();
+        this.renderLiveScannerList();
         
-        // Success Feedback
-        if (student) {
-            this.playSuccessSound();
-            this.triggerVisualFlash();
-            if (window.confetti) confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 }, colors: ['#6366f1', '#10b981'] });
-            this.showToast(`✅ Presente: ${student.fullName}`, 'success');
-        } else {
-            this.showToast(`⚠️ QR no reconocido`, 'error');
-        }
+        if (statusEl) statusEl.innerHTML = `<span style="color:var(--secondary)">✅ ${student.fullName}</span>`;
+        if (window.confetti) confetti({ particleCount: 60, spread: 50, origin: { y: 0.8 } });
     }
 
-    playSuccessSound() {
+    playAudio(freq, duration) {
         try {
-            const context = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = context.createOscillator();
-            const gain = context.createGain();
-            osc.connect(gain);
-            gain.connect(context.destination);
-            osc.frequency.value = 880; 
-            gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.5);
-            osc.start();
-            osc.stop(context.currentTime + 0.5);
-        } catch (e) { console.warn('Audio feedback failed'); }
+            this.initAudio();
+            const osc = this.audioCtx.createOscillator();
+            const g = this.audioCtx.createGain();
+            osc.connect(g); g.connect(this.audioCtx.destination);
+            osc.frequency.value = freq;
+            g.gain.exponentialRampToValueAtTime(0.0001, this.audioCtx.currentTime + duration);
+            osc.start(); osc.stop(this.audioCtx.currentTime + duration);
+        } catch (e) {}
     }
 
-    triggerVisualFlash() {
-        const container = document.getElementById('reader-container');
-        if (container) {
-            container.style.boxShadow = '0 0 100px #10b981';
-            setTimeout(() => {
-                container.style.boxShadow = '0 0 50px rgba(99, 102, 241, 0.2)';
-            }, 3000);
+    async downloadAllQRs() {
+        if (this.model.students.length === 0) {
+            this.showToast('No hay alumnos para exportar', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btn-download-all-qr');
+        const originalText = btn.innerText;
+        btn.innerText = '⏳ Generando ZIP...';
+        btn.disabled = true;
+
+        try {
+            const zip = new JSZip();
+            const folder = zip.folder("Codigos_QR");
+            
+            // Create a hidden container for rendering
+            const hiddenContainer = document.createElement('div');
+            hiddenContainer.style.position = 'fixed';
+            hiddenContainer.style.left = '-9999px';
+            document.body.appendChild(hiddenContainer);
+
+            const promises = this.model.students.map(async s => {
+                const div = document.createElement('div');
+                hiddenContainer.appendChild(div);
+                
+                await this.qrService.generateQR(div, s.id);
+                const fileName = `QR_${s.id}_${s.fullName.replace(/[^a-z0-9]/gi, '_')}.png`;
+                const file = await this.qrService.getQRFile(div, fileName);
+                
+                if (file) {
+                    folder.file(fileName, file);
+                }
+                hiddenContainer.removeChild(div);
+            });
+
+            await Promise.all(promises);
+            document.body.removeChild(hiddenContainer);
+
+            const content = await zip.generateAsync({type:"blob"});
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(content);
+            link.download = `QRAttendance_QRs_${new Date().toISOString().split('T')[0]}.zip`;
+            link.click();
+            
+            this.showToast('✅ ZIP generado correctamente');
+        } catch (err) {
+            console.error("ZIP Error", err);
+            this.showToast('Error al generar ZIP', 'error');
+        } finally {
+            btn.innerText = originalText;
+            btn.disabled = false;
         }
     }
 
-    generateStudentQRCards() {
-        const grid = document.getElementById('qr-preview-grid');
-        grid.innerHTML = '';
-        
-        this.model.students.forEach(s => {
-            const item = document.createElement('div');
-            item.className = 'qr-item';
-            item.innerHTML = `
-                <div style="font-weight:700; color:var(--primary); font-size:1rem; margin-bottom:0.5rem;">${s.fullName}</div>
-                <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem; font-family:monospace;">ID: ${s.id}</div>
-                <div class="qr-container"></div>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1.5rem;">
-                    <a class="btn btn-primary" style="width:100%; font-size:0.85rem; opacity:0.5; pointer-events:none;">Generando...</a>
-                    <button class="btn btn-secondary btn-simulate" style="width:100%; font-size:0.85rem;">⚡ Simular Escaneo</button>
-                </div>
-            `;
-            grid.appendChild(item);
+    fullReset() {
+        if (confirm('🚨 ¿Borrar todos los datos?')) { this.model.clearData(); window.location.reload(); }
+    }
 
-            const container = item.querySelector('.qr-container');
-            const downloadLink = item.querySelector('a');
-            const simulateBtn = item.querySelector('.btn-simulate');
-            
-            this.qrService.generateQR(container, s.id);
-            this.qrService.getQRDataURL(container).then(dataUrl => {
-                if (dataUrl) {
-                    downloadLink.href = dataUrl;
-                    downloadLink.download = `QR_${s.id}_${s.fullName}.png`;
-                    downloadLink.style.opacity = '1';
-                    downloadLink.style.pointerEvents = 'auto';
-                    downloadLink.textContent = `⬇️ Descargar QR`;
-                }
-            });
+    clearStudents() {
+        if (confirm('🗑️ ¿Borrar alumnos?')) { this.model.clearStudents(); this.renderInitialUI(); }
+    }
 
-            simulateBtn.addEventListener('click', () => {
-                this.handleScan(s.id);
-                this.showToast(`Simulación: QR de ${s.fullName} detectado`);
-            });
-        });
+    resetAttendanceToday() {
+        if (confirm('🧹 ¿Limpiar asistencia de hoy?')) { this.model.clearLogs(); this.renderInitialUI(); }
     }
 
     updateStats() {
@@ -285,44 +223,98 @@ class AppController {
 
     updateAttendanceTable() {
         const tbody = document.querySelector('#attendance-table tbody');
-        tbody.innerHTML = '';
-
-        this.model.students.forEach(student => {
-            const record = this.model.logs.find(log => log.id === student.id);
+        if (!tbody) return;
+        tbody.innerHTML = this.model.students.length === 0 ? '<tr><td colspan="5">Sin datos</td></tr>' : '';
+        this.model.students.forEach(s => {
+            const log = this.model.logs.find(l => l.id === s.id);
             const tr = document.createElement('tr');
-            
-            if (record) {
-                tr.innerHTML = `
-                    <td style="color: var(--primary); font-family: monospace;">${student.id}</td>
-                    <td style="font-weight: 700;" colspan="2">${student.fullName}</td>
-                    <td>${record.date}</td>
-                    <td style="font-family: monospace; color: var(--secondary);">${record.time}</td>
-                    <td><span class="status-badge" style="background: rgba(16, 185, 129, 0.15); color: var(--secondary);">Presente ✓</span></td>
-                `;
-            } else {
-                tr.innerHTML = `
-                    <td style="color: var(--text-muted); font-family: monospace;">${student.id}</td>
-                    <td style="color: var(--text-muted); font-weight: 500;" colspan="2">${student.fullName}</td>
-                    <td style="color: transparent;">--/--/----</td>
-                    <td style="color: transparent;">--:--:--</td>
-                    <td><span class="status-badge" style="background: rgba(244, 63, 94, 0.1); color: var(--danger);">Ausente</span></td>
-                `;
-            }
+            tr.innerHTML = `<td>${s.id}</td><td>${s.fullName}</td><td>${log ? log.date : '--'}</td><td>${log ? log.time : '--'}</td><td>${log ? 'Presente' : 'Ausente'}</td>`;
             tbody.appendChild(tr);
         });
+    }
 
-        // Unknowns
-        this.model.logs.filter(l => !l.matched).forEach(log => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="color: var(--danger); font-family: monospace;">${log.id}</td>
-                <td style="font-style: italic; color: var(--danger);" colspan="2">${log.fullName}</td>
-                <td>${log.date}</td>
-                <td style="font-family: monospace; color: var(--danger);">${log.time}</td>
-                <td><span class="status-badge" style="background: rgba(244, 63, 94, 0.2); color: var(--danger);">No Registrado</span></td>
+    renderLiveScannerList() {
+        const list = document.getElementById('scanner-live-list');
+        const count = document.getElementById('scanner-list-count');
+        if (!list || !count) return;
+        list.innerHTML = '';
+        let presentCount = 0;
+        this.model.students.forEach(s => {
+            const isPresent = this.model.logs.some(l => l.id === s.id);
+            if (isPresent) presentCount++;
+            const item = document.createElement('div');
+            item.className = `scanner-student-item ${isPresent ? 'present' : ''}`;
+            item.innerHTML = `<div><b>${s.fullName}</b><br><small>${s.id}</small></div><div class="status-dot"></div>`;
+            list.appendChild(item);
+        });
+        count.innerText = `${presentCount}/${this.model.students.length}`;
+    }
+
+    async generateStudentQRCards() {
+        const grid = document.getElementById('qr-preview-grid');
+        if (!grid) return;
+        grid.innerHTML = '';
+        
+        if (this.model.students.length === 0) {
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: var(--text-muted);">No hay alumnos cargados. Ve al Dashboard para importar.</div>';
+            return;
+        }
+
+        // Sequential generation to avoid saturating the browser resources
+        for (const s of this.model.students) {
+            const item = document.createElement('div');
+            item.className = 'qr-item';
+            item.innerHTML = `
+                <div style="font-weight:700; color:var(--text-main); margin-bottom: 0.5rem;">${s.fullName}</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 1rem;">ID: ${s.id}</div>
+                <div class="qr-target" style="margin:1rem 0; display:flex; justify-content:center; background: white; padding: 10px; border-radius: 12px; min-height: 256px;">
+                    <div style="display:flex; align-items:center; color:var(--primary); font-size:0.8rem;">⌛ Preparando...</div>
+                </div>
+                <div style="display:grid; gap:0.5rem;">
+                    <a class="btn btn-primary btn-dl" style="font-size:0.75rem; opacity:0.3; pointer-events:none;">⏳ Generando PNG...</a>
+                    <button class="btn btn-secondary btn-sim" style="font-size:0.75rem; border: 1px solid var(--glass-border); background: transparent; color: var(--text-muted);">⚡ Simular</button>
+                </div>
             `;
-            tbody.appendChild(tr);
-        });
+            grid.appendChild(item);
+            
+            const target = item.querySelector('.qr-target');
+            const dl = item.querySelector('.btn-dl');
+            
+            // Generate QR
+            const qrInstance = this.qrService.generateQR(target, s.id);
+            
+            if (qrInstance) {
+                // Wait for image and activate download
+                const fileName = `QR_${s.id}_${s.fullName.replace(/\s+/g, '_')}.png`;
+                const url = await this.qrService.getQRDataURL(target, fileName);
+                if (url) {
+                    dl.href = url;
+                    dl.download = fileName;
+                    dl.style.opacity = '1';
+                    dl.style.pointerEvents = 'auto';
+                    dl.innerHTML = '⬇️ Descargar PNG';
+                } else {
+                    dl.innerText = '❌ Tiempo agotado';
+                    dl.style.color = 'var(--danger)';
+                }
+            } else {
+                dl.innerText = '❌ Error';
+                dl.style.color = 'var(--danger)';
+            }
+            
+            item.querySelector('.btn-sim').onclick = () => this.handleScan(s.id);
+            
+            // Tiny pause to keep UI responsive and allow the browser to "breathe"
+            await new Promise(r => setTimeout(r, 50));
+        }
+    }
+
+    showFileStatus() {
+        const el = document.getElementById('file-status');
+        if (el) {
+            el.style.display = this.model.students.length > 0 ? 'block' : 'none';
+            el.innerText = `✓ ${this.model.students.length} alumnos cargados`;
+        }
     }
 
     exportData() {
@@ -330,28 +322,18 @@ class AppController {
         this.showToast('✅ Reporte exportado');
     }
 
-    showFileStatus() {
-        const el = document.getElementById('file-status');
-        el.style.display = 'block';
-        el.innerText = `✓ ${this.model.students.length} estudiantes en base de datos local`;
-        document.getElementById('btn-reset-data').style.display = 'inline-flex';
-    }
-
     showToast(msg, type = 'success') {
-        const toast = document.getElementById('toast');
-        const msgEl = document.getElementById('toast-msg');
-        toast.className = `toast show ${type}`;
-        msgEl.innerText = msg;
-        setTimeout(() => toast.classList.remove('show'), 3000);
+        const t = document.getElementById('toast');
+        const m = document.getElementById('toast-msg');
+        if (t && m) { t.className = `toast show ${type}`; m.innerText = msg; setTimeout(() => t.classList.remove('show'), 3000); }
     }
 }
 
-// Bootstrap the app
 window.addEventListener('DOMContentLoaded', () => {
-    window.app = new AppController();
-});
-
-// Cleanup on close
-window.addEventListener('beforeunload', () => {
-    if (window.app) window.app.stopScanner();
+    const video = document.getElementById("qr-video");
+    const canvas = document.getElementById("qr-canvas");
+    const model = new AttendanceModel();
+    const qr = new QRService();
+    const exportSrv = new ExportService();
+    window.app = new AppController(model, new ScannerService(video, canvas, (data) => window.app.handleScan(data)), qr, exportSrv);
 });

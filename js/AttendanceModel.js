@@ -36,9 +36,20 @@ export class AttendanceModel {
     }
 
     clearData() {
-        localStorage.clear();
+        localStorage.removeItem(this.STORAGE_KEYS.STUDENTS);
+        localStorage.removeItem(this.STORAGE_KEYS.LOGS);
         this.students = [];
         this.logs = [];
+    }
+
+    clearStudents() {
+        this.students = [];
+        this._save(this.STORAGE_KEYS.STUDENTS, this.students);
+    }
+
+    clearLogs() {
+        this.logs = [];
+        this._save(this.STORAGE_KEYS.LOGS, this.logs);
     }
 
     getStudentById(id) {
