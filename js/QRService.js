@@ -2,7 +2,7 @@
  * Handles QR code generation using the original davidshimjs/qrcode.js library.
  * Responsibility: High-reliability file-level QR generation.
  */
-export class QRService {
+class QRService {
     constructor() {
         this.activeUrls = new Set();
     }

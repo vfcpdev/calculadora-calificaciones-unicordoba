@@ -2,7 +2,7 @@
  * Handles QR scanning using native BarcodeDetector or jsQR fallback.
  * Optimized for high-performance reading and maximum compatibility.
  */
-export class ScannerService {
+class ScannerService {
     constructor(video, canvas, onScan) {
         this.video = video;
         this.canvas = canvas;

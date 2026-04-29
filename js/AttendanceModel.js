@@ -2,7 +2,7 @@
  * Handles the data layer for students and attendance logs.
  * Responsibility: Persistent Storage & State.
  */
-export class AttendanceModel {
+class AttendanceModel {
     constructor() {
         this.STORAGE_KEYS = {
             STUDENTS: 'qr_att_v3_students',

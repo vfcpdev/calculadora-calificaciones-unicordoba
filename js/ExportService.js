@@ -2,7 +2,7 @@
  * Handles data export and import.
  * Responsibility: XLSX processing and File downloads.
  */
-export class ExportService {
+class ExportService {
     constructor() {
         // XLSX must be loaded globally
     }

@@ -1,8 +1,3 @@
-import { AttendanceModel } from './AttendanceModel.js';
-import { ScannerService } from './ScannerService.js';
-import { QRService } from './QRService.js';
-import { ExportService } from './ExportService.js';
-
 class AppController {
     constructor(model, scannerService, qrService, exportService) {
         this.model = model;
